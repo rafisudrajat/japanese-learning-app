@@ -174,6 +174,7 @@ class QuizQuestionResponse(BaseModel):
 class QuizAnswerRequest(BaseModel):
     question_id: str
     choice_index: int
+    count_as_review: bool = False
 
 
 class QuizAnswerResponse(BaseModel):
@@ -474,11 +475,32 @@ def quiz_next(
 
 
 @app.post("/quiz/answer")
-def quiz_answer(req: QuizAnswerRequest) -> QuizAnswerResponse:
+def quiz_answer(
+    req: QuizAnswerRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> QuizAnswerResponse:
     question = _pending.pop(req.question_id, None)
     if question is None:
         raise HTTPException(status_code=404, detail="Unknown or expired question_id")
     correct = grade(question, req.choice_index)
+
+    if req.count_as_review and question.target_lemma:
+        row = conn.execute(
+            "SELECT c.id FROM cards c JOIN vocab v ON c.vocab_id = v.id WHERE v.lemma = ?",
+            (question.target_lemma,),
+        ).fetchone()
+        if row:
+            card_db_id = row[0]
+            card = load_card(conn, card_db_id)
+            now = datetime.now(timezone.utc)
+            rating = fsrs.Rating(3 if correct else 1)
+            new_card, _ = review(card, rating, now)
+            update_card(conn, card_db_id, new_card)
+            conn.execute(
+                "INSERT INTO review_logs (card_id, rating, reviewed_at) VALUES (?, ?, ?)",
+                (card_db_id, rating.value, now.isoformat()),
+            )
+            conn.commit()
+
     return QuizAnswerResponse(
         correct=correct,
         correct_index=question.answer_index,

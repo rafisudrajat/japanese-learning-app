@@ -238,3 +238,42 @@ def test_quiz_answer_unknown_id_404(client: TestClient, api_db: Path) -> None:
         json={"question_id": "00000000-0000-0000-0000-000000000000", "choice_index": 0},
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Step 4.3 — (Optional) feed results into FSRS
+# ---------------------------------------------------------------------------
+
+
+def _seed_quiz_vocab_with_cards(db_path: Path) -> None:
+    conn = connect(db_path)
+    for lemma, reading, meaning, pos in _QUIZ_VOCAB:
+        vocab_id = upsert_vocab(conn, lemma, reading, meaning, pos, now="2025-01-01T00:00:00")
+        conn.execute("UPDATE vocab SET status = 'learning' WHERE id = ?", (vocab_id,))
+        save_card(conn, vocab_id, fsrs.Card())
+    conn.commit()
+    conn.close()
+
+
+def test_quiz_answer_updates_review_log(client: TestClient, api_db: Path) -> None:
+    _seed_quiz_vocab_with_cards(api_db)
+
+    q = client.get("/quiz/next", params={"type": "meaning"}).json()
+
+    resp = client.post(
+        "/quiz/answer",
+        json={
+            "question_id": q["question_id"],
+            "choice_index": 0,
+            "count_as_review": True,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    expected_rating = 3 if data["correct"] else 1
+
+    conn = connect(api_db)
+    logs = conn.execute("SELECT rating FROM review_logs").fetchall()
+    conn.close()
+    assert len(logs) == 1
+    assert logs[0][0] == expected_rating
