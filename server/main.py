@@ -75,9 +75,20 @@ def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
 
 
+@app.get("/vocab-page")
+def vocab_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "vocab.html")
+
+
 @app.post("/analyze")
-def analyze_endpoint(req: AnalyzeRequest) -> AnalyzeResponse:
-    tokens: list[Token] = analyze(req.text, _tokenizer, _dictionary)
+def analyze_endpoint(
+    req: AnalyzeRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> AnalyzeResponse:
+    known = {
+        row[0]
+        for row in conn.execute("SELECT lemma FROM vocab").fetchall()
+    }
+    tokens: list[Token] = analyze(req.text, _tokenizer, _dictionary, known_lemmas=known)
     return AnalyzeResponse(
         tokens=[
             TokenResponse(

@@ -76,3 +76,19 @@ def test_save_word_twice_is_idempotent() -> None:
     resp = client.get("/vocab")
     cats = [v for v in resp.json()["vocab"] if v["lemma"] == "猫"]
     assert len(cats) == 1
+
+
+def test_vocab_search_filters() -> None:
+    _reset_db()
+    client.post(
+        "/vocab",
+        json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞"},
+    )
+    client.post(
+        "/vocab",
+        json={"lemma": "犬", "reading": "いぬ", "meaning": "dog", "pos": "名詞"},
+    )
+    resp = client.get("/vocab", params={"q": "猫"})
+    vocab = resp.json()["vocab"]
+    assert len(vocab) == 1
+    assert vocab[0]["lemma"] == "猫"

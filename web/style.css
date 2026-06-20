@@ -25,10 +25,11 @@ body {
 .word {
   cursor: pointer;
   padding: 0 1px;
+  position: relative;
 }
 
-.word {
-  position: relative;
+.word.known {
+  opacity: 0.5;
 }
 
 .word:hover {

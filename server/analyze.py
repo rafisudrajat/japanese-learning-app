@@ -41,7 +41,13 @@ def tokenize(text: str, tokenizer: Tokenizer) -> list[RawToken]:
     ]
 
 
-def analyze(text: str, tokenizer: Tokenizer, dictionary: Jamdict) -> list[Token]:
+def analyze(
+    text: str,
+    tokenizer: Tokenizer,
+    dictionary: Jamdict,
+    known_lemmas: set[str] | None = None,
+) -> list[Token]:
+    _known = known_lemmas or set()
     return [
         Token(
             surface=raw.surface,
@@ -49,7 +55,7 @@ def analyze(text: str, tokenizer: Tokenizer, dictionary: Jamdict) -> list[Token]
             lemma=raw.lemma,
             meanings=lookup_meanings(raw.lemma, dictionary),
             pos=raw.pos,
-            known=False,
+            known=raw.lemma in _known,
         )
         for raw in tokenize(text, tokenizer)
     ]

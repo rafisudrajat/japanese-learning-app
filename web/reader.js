@@ -13,7 +13,8 @@ document.getElementById("analyze-btn").addEventListener("click", async () => {
       ? `<ruby>${t.surface}<rt>${t.reading_hiragana}</rt></ruby>`
       : t.surface;
     const meanings = JSON.stringify(t.meanings).replace(/'/g, "&#39;");
-    return `<span class="word" data-lemma="${t.lemma}" data-reading="${t.reading_hiragana}" data-meanings='${meanings}'>${display}</span>`;
+    const knownClass = t.known ? " known" : "";
+    return `<span class="word${knownClass}" data-lemma="${t.lemma}" data-reading="${t.reading_hiragana}" data-meanings='${meanings}' data-pos="${t.pos[0] || ''}">${display}</span>`;
   }).join("");
 });
 

@@ -63,3 +63,11 @@ def test_cache_hits_skip_tokenizer(tokenizer: Tokenizer, dictionary: Jamdict) ->
     assert cached.tokenize_calls == 1
     cached(text)
     assert cached.tokenize_calls == 1
+
+
+def test_known_flag_set_from_vocab(tokenizer: Tokenizer, dictionary: Jamdict) -> None:
+    tokens: list[Token] = analyze("猫を見た", tokenizer, dictionary, known_lemmas={"猫"})
+    cat = next(t for t in tokens if t.surface == "猫")
+    assert cat.known is True
+    verb = next(t for t in tokens if t.lemma == "見る")
+    assert verb.known is False
