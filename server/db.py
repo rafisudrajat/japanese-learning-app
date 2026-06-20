@@ -31,3 +31,28 @@ def connect(path: str | Path) -> sqlite3.Connection:
     """)
     conn.commit()
     return conn
+
+
+def upsert_vocab(
+    conn: sqlite3.Connection,
+    lemma: str,
+    reading: str,
+    meaning: str,
+    pos: str,
+    text_id: int | None = None,
+    now: str = "",
+) -> int:
+    cur = conn.execute(
+        """
+        INSERT INTO vocab (lemma, reading, primary_meaning, pos, seen_count, text_count,
+                           first_seen_text_id, created_at)
+        VALUES (?, ?, ?, ?, 1, 1, ?, ?)
+        ON CONFLICT (lemma) DO UPDATE SET
+            seen_count = seen_count + 1
+        RETURNING id
+        """,
+        (lemma, reading, meaning, pos, text_id, now),
+    )
+    row = cur.fetchone()
+    conn.commit()
+    return row[0]
