@@ -14,6 +14,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pywebview",
+    "genanki",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +23,9 @@ dev = [
     "ruff",
     "httpx",
 ]
+
+[tool.setuptools.packages.find]
+include = ["server*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
