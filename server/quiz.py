@@ -23,6 +23,7 @@ class VocabEntry:
     reading: str
     meaning: str
     pos: str
+    frequency: int = 0
 
 
 @dataclass(frozen=True)
@@ -50,8 +51,10 @@ def pick_distractors(
     """Choose ``n`` plausible wrong options for a multiple-choice question.
 
     Excludes the target, prefers same-POS candidates, and tops up from the rest
-    when too few same-POS words exist. Returns ``min(n, available)`` distinct
-    entries — never the target, no duplicates — deterministically for a given RNG.
+    when too few same-POS words exist. When the target has a nonzero frequency,
+    same-POS candidates are sorted by frequency proximity before selection.
+    Returns ``min(n, available)`` distinct entries — never the target, no
+    duplicates — deterministically for a given RNG.
     """
     candidates = [e for e in pool if e.lemma != target.lemma]
 
@@ -61,7 +64,11 @@ def pick_distractors(
     else:
         same, other = candidates, []
 
-    rng.shuffle(same)
+    if target.frequency > 0 and any(e.frequency > 0 for e in same):
+        rng.shuffle(same)
+        same.sort(key=lambda e: abs(e.frequency - target.frequency))
+    else:
+        rng.shuffle(same)
     rng.shuffle(other)
     ordered = same + other
     return ordered[:n]
@@ -149,6 +156,30 @@ def make_cloze_question(
         answer_index=pos,
         target_lemma=target.lemma,
     )
+
+
+def make_mixed_question(
+    pool: list[VocabEntry],
+    rng: random.Random,
+    sentence: str | None = None,
+    tokenizer: Tokenizer | None = None,
+) -> Question:
+    kanji_targets = [e for e in pool if _contains_kanji(e.lemma)]
+    generators: list[str] = ["meaning"]
+    if len(kanji_targets) >= 4:
+        generators.append("reading")
+    if sentence is not None and tokenizer is not None:
+        generators.append("cloze")
+    kind = rng.choice(generators)
+    if kind == "reading":
+        target = rng.choice(kanji_targets)
+        return make_reading_question(target, pool, rng)
+    elif kind == "cloze" and sentence is not None and tokenizer is not None:
+        target = rng.choice(pool)
+        return make_cloze_question(target, sentence, pool, tokenizer, rng)
+    else:
+        target = rng.choice(pool)
+        return make_meaning_question(target, pool, rng)
 
 
 def grade(question: Question, choice_index: int) -> bool:

@@ -22,6 +22,7 @@ from server.quiz import (
     grade,
     make_cloze_question,
     make_meaning_question,
+    make_mixed_question,
     make_reading_question,
     split_sentences,
 )
@@ -184,6 +185,23 @@ class QuizAnswerResponse(BaseModel):
 
 
 _pending: dict[str, Question] = {}
+
+
+def _lookup_frequency(lemma: str) -> int:
+    jmd = _get_dictionary()
+    try:
+        result = jmd.lookup(lemma)
+    except ValueError:
+        return 0
+    for entry in result.entries:
+        for form in list(entry.kanji_forms) + list(entry.kana_forms):
+            for tag in form.pri:
+                if tag.startswith("nf"):
+                    try:
+                        return int(tag[2:])
+                    except ValueError:
+                        continue
+    return 0
 
 
 @app.get("/")
@@ -425,7 +443,14 @@ def quiz_next(
         "WHERE status IN ('learning', 'known')",
     ).fetchall()
     pool = [
-        VocabEntry(lemma=r[0], reading=r[1] or "", meaning=r[2] or "", pos=r[3] or "") for r in rows
+        VocabEntry(
+            lemma=r[0],
+            reading=r[1] or "",
+            meaning=r[2] or "",
+            pos=r[3] or "",
+            frequency=_lookup_frequency(r[0]),
+        )
+        for r in rows
     ]
 
     if len(pool) < 4:
@@ -434,7 +459,9 @@ def quiz_next(
         )
 
     rng = random.Random()
-    if type == "reading":
+    if type == "mixed":
+        question = make_mixed_question(pool, rng)
+    elif type == "reading":
         kanji_pool = [e for e in pool if _contains_kanji(e.lemma)]
         if len(kanji_pool) < 4:
             raise HTTPException(

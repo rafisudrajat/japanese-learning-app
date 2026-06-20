@@ -9,6 +9,7 @@ from server.quiz import (
     grade,
     make_cloze_question,
     make_meaning_question,
+    make_mixed_question,
     make_reading_question,
     pick_distractors,
     sample_one,
@@ -292,3 +293,51 @@ def test_grade_correct_and_incorrect() -> None:
 def test_grade_out_of_range() -> None:
     assert grade(_GRADE_Q, 99) is False
     assert grade(_GRADE_Q, -1) is False
+
+
+# ---------------------------------------------------------------------------
+# Step 6.1 — Mixed mode + frequency-weighted distractors
+# ---------------------------------------------------------------------------
+
+MIXED_POOL = [
+    ("猫", "ねこ", "cat", "名詞"),
+    ("犬", "いぬ", "dog", "名詞"),
+    ("鳥", "とり", "bird", "名詞"),
+    ("魚", "さかな", "fish", "名詞"),
+    ("本", "ほん", "book", "名詞"),
+    ("花", "はな", "flower", "名詞"),
+]
+
+
+def test_mixed_returns_valid_kind() -> None:
+    pool = make_pool(MIXED_POOL)
+    valid_kinds = {"reading", "meaning"}
+    seen_kinds: set[str] = set()
+    for seed in range(20):
+        q = make_mixed_question(pool, random.Random(seed))
+        assert q.kind in valid_kinds
+        assert len(q.choices) == 4
+        assert 0 <= q.answer_index < 4
+        assert len(set(q.choices)) == 4
+        seen_kinds.add(q.kind)
+    assert seen_kinds == valid_kinds
+
+
+def test_distractors_prefer_similar_frequency() -> None:
+    target = VocabEntry("猫", "ねこ", "cat", "名詞", frequency=10)
+    pool = [
+        target,
+        VocabEntry("犬", "いぬ", "dog", "名詞", frequency=12),
+        VocabEntry("鳥", "とり", "bird", "名詞", frequency=8),
+        VocabEntry("魚", "さかな", "fish", "名詞", frequency=11),
+        VocabEntry("空", "そら", "sky", "名詞", frequency=40),
+        VocabEntry("夢", "ゆめ", "dream", "名詞", frequency=42),
+        VocabEntry("闇", "やみ", "darkness", "名詞", frequency=44),
+        VocabEntry("霧", "きり", "fog", "名詞", frequency=46),
+        VocabEntry("塔", "とう", "tower", "名詞", frequency=48),
+    ]
+    total_close = 0
+    for seed in range(20):
+        distractors = pick_distractors(target, pool, 3, random.Random(seed))
+        total_close += sum(1 for d in distractors if abs(d.frequency - target.frequency) <= 5)
+    assert total_close >= 50

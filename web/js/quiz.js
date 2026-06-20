@@ -1,4 +1,4 @@
-let quizType = "meaning";
+let quizType = "mixed";
 
 document.querySelectorAll(".quiz-type-tabs .tab").forEach(btn => {
   btn.addEventListener("click", () => {
