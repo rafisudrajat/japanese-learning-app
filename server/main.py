@@ -14,6 +14,7 @@ import fsrs
 from server.analyze import Token, analyze
 from server.db import connect, load_card, save_card, update_card, upsert_vocab
 from server.scheduler import review
+from server.export import export_apkg
 from server.stats import compute_stats
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -241,3 +242,13 @@ def get_stats(conn: sqlite3.Connection = Depends(get_db)) -> StatsResponse:
         total_reviews=s.total_reviews,
         reviews_per_day=s.reviews_per_day,
     )
+
+
+@app.get("/export/apkg")
+def export_apkg_route(conn: sqlite3.Connection = Depends(get_db)) -> FileResponse:
+    import tempfile
+
+    tmp = Path(tempfile.mkdtemp())
+    path = tmp / "vocab.apkg"
+    export_apkg(conn, path)
+    return FileResponse(path, media_type="application/octet-stream", filename="vocab.apkg")
