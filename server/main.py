@@ -9,8 +9,11 @@ from pydantic import BaseModel
 import sudachipy
 import jamdict
 
+import fsrs
+
 from server.analyze import Token, analyze
-from server.db import connect, upsert_vocab
+from server.db import connect, load_card, update_card, upsert_vocab
+from server.scheduler import review
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "app.db"
@@ -70,6 +73,26 @@ class VocabListResponse(BaseModel):
     vocab: list[VocabItem]
 
 
+class ReviewCardItem(BaseModel):
+    card_db_id: int
+    lemma: str
+    reading: str | None
+    primary_meaning: str | None
+
+
+class ReviewQueueResponse(BaseModel):
+    cards: list[ReviewCardItem]
+
+
+class AnswerRequest(BaseModel):
+    card_db_id: int
+    rating: int
+
+
+class AnswerResponse(BaseModel):
+    next_due: str
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
@@ -84,10 +107,7 @@ def vocab_page() -> FileResponse:
 def analyze_endpoint(
     req: AnalyzeRequest, conn: sqlite3.Connection = Depends(get_db)
 ) -> AnalyzeResponse:
-    known = {
-        row[0]
-        for row in conn.execute("SELECT lemma FROM vocab").fetchall()
-    }
+    known = {row[0] for row in conn.execute("SELECT lemma FROM vocab").fetchall()}
     tokens: list[Token] = analyze(req.text, _tokenizer, _dictionary, known_lemmas=known)
     return AnalyzeResponse(
         tokens=[
@@ -105,16 +125,10 @@ def analyze_endpoint(
 
 
 @app.post("/vocab")
-def save_word(
-    req: SaveWordRequest, conn: sqlite3.Connection = Depends(get_db)
-) -> SaveWordResponse:
-    existing = conn.execute(
-        "SELECT id FROM vocab WHERE lemma = ?", (req.lemma,)
-    ).fetchone()
+def save_word(req: SaveWordRequest, conn: sqlite3.Connection = Depends(get_db)) -> SaveWordResponse:
+    existing = conn.execute("SELECT id FROM vocab WHERE lemma = ?", (req.lemma,)).fetchone()
     now = datetime.now(timezone.utc).isoformat()
-    vocab_id = upsert_vocab(
-        conn, req.lemma, req.reading, req.meaning, req.pos, req.text_id, now
-    )
+    vocab_id = upsert_vocab(conn, req.lemma, req.reading, req.meaning, req.pos, req.text_id, now)
     return SaveWordResponse(id=vocab_id, created=existing is None)
 
 
@@ -137,3 +151,44 @@ def list_vocab(
             for r in rows
         ]
     )
+
+
+@app.get("/review-page")
+def review_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "review.html")
+
+
+@app.get("/review/queue")
+def review_queue(
+    now: str | None = None, conn: sqlite3.Connection = Depends(get_db)
+) -> ReviewQueueResponse:
+    ts = now or datetime.now(timezone.utc).isoformat()
+    rows = conn.execute(
+        """
+        SELECT c.id, v.lemma, v.reading, v.primary_meaning
+        FROM cards c JOIN vocab v ON c.vocab_id = v.id
+        WHERE c.due <= ?
+        """,
+        (ts,),
+    ).fetchall()
+    return ReviewQueueResponse(
+        cards=[
+            ReviewCardItem(card_db_id=r[0], lemma=r[1], reading=r[2], primary_meaning=r[3])
+            for r in rows
+        ]
+    )
+
+
+@app.post("/review/answer")
+def review_answer(req: AnswerRequest, conn: sqlite3.Connection = Depends(get_db)) -> AnswerResponse:
+    card = load_card(conn, req.card_db_id)
+    now = datetime.now(timezone.utc)
+    rating = fsrs.Rating(req.rating)
+    new_card, log = review(card, rating, now)
+    update_card(conn, req.card_db_id, new_card)
+    conn.execute(
+        "INSERT INTO review_logs (card_id, rating, reviewed_at) VALUES (?, ?, ?)",
+        (req.card_db_id, req.rating, now.isoformat()),
+    )
+    conn.commit()
+    return AnswerResponse(next_due=new_card.due.isoformat())

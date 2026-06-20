@@ -1,10 +1,12 @@
 import sqlite3
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
+import fsrs
 from starlette.testclient import TestClient
 
-from server.db import connect
+from server.db import connect, save_card, upsert_vocab
 from server.main import app, get_db
 
 TOKEN_FIELDS = {"surface", "reading_hiragana", "lemma", "meanings", "pos", "known"}
@@ -23,6 +25,8 @@ client = TestClient(app)
 
 def _reset_db() -> None:
     conn = connect(_test_db_path)
+    conn.execute("DELETE FROM review_logs")
+    conn.execute("DELETE FROM cards")
     conn.execute("DELETE FROM vocab")
     conn.commit()
     conn.close()
@@ -92,3 +96,49 @@ def test_vocab_search_filters() -> None:
     vocab = resp.json()["vocab"]
     assert len(vocab) == 1
     assert vocab[0]["lemma"] == "猫"
+
+
+def _create_due_card(lemma: str = "猫") -> int:
+    conn = connect(_test_db_path)
+    vocab_id = upsert_vocab(conn, lemma, "ねこ", "cat", "名詞", now="2025-01-01T00:00:00")
+    card = fsrs.Card()
+    card_db_id = save_card(conn, vocab_id, card)
+    conn.close()
+    return card_db_id
+
+
+def test_answer_advances_and_logs() -> None:
+    _reset_db()
+    card_db_id = _create_due_card()
+
+    now = datetime.now(timezone.utc).isoformat()
+    queue_before = client.get("/review/queue", params={"now": now}).json()
+    assert any(c["card_db_id"] == card_db_id for c in queue_before["cards"])
+
+    resp = client.post("/review/answer", json={"card_db_id": card_db_id, "rating": 3})
+    assert resp.status_code == 200
+
+    queue_after = client.get("/review/queue", params={"now": now}).json()
+    assert not any(c["card_db_id"] == card_db_id for c in queue_after["cards"])
+
+    conn = connect(_test_db_path)
+    logs = conn.execute(
+        "SELECT card_id, rating FROM review_logs WHERE card_id = ?", (card_db_id,)
+    ).fetchall()
+    conn.close()
+    assert len(logs) == 1
+    assert logs[0][1] == 3
+
+
+def test_queue_respects_due() -> None:
+    _reset_db()
+    conn = connect(_test_db_path)
+    vocab_id = upsert_vocab(conn, "犬", "いぬ", "dog", "名詞", now="2025-01-01T00:00:00")
+    card = fsrs.Card()
+    card.__dict__["due"] = datetime(2099, 1, 1, tzinfo=timezone.utc)
+    save_card(conn, vocab_id, card)
+    conn.close()
+
+    now = datetime.now(timezone.utc).isoformat()
+    queue = client.get("/review/queue", params={"now": now}).json()
+    assert not any(c["lemma"] == "犬" for c in queue["cards"])
