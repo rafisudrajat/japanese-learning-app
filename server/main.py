@@ -1,5 +1,7 @@
+import random
 import sqlite3
 import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,6 +16,17 @@ import fsrs
 
 from server.analyze import Token, analyze
 from server.db import connect, delete_vocab, load_card, save_card, update_card, upsert_vocab
+from server.quiz import (
+    Question,
+    VocabEntry,
+    grade,
+    make_cloze_question,
+    make_meaning_question,
+    make_mixed_question,
+    make_reading_question,
+    split_sentences,
+)
+from server.render import _contains_kanji
 from server.scheduler import review
 from server.export import export_apkg
 from server.stats import compute_stats
@@ -149,6 +162,46 @@ class UrlImportRequest(BaseModel):
 
 class DomImportRequest(BaseModel):
     html: str
+
+
+class QuizQuestionResponse(BaseModel):
+    question_id: str
+    kind: str
+    prompt: str
+    choices: list[str]
+    context_html: str | None
+
+
+class QuizAnswerRequest(BaseModel):
+    question_id: str
+    choice_index: int
+    count_as_review: bool = False
+
+
+class QuizAnswerResponse(BaseModel):
+    correct: bool
+    correct_index: int
+    correct_answer: str
+
+
+_pending: dict[str, Question] = {}
+
+
+def _lookup_frequency(lemma: str) -> int:
+    jmd = _get_dictionary()
+    try:
+        result = jmd.lookup(lemma)
+    except ValueError:
+        return 0
+    for entry in result.entries:
+        for form in list(entry.kanji_forms) + list(entry.kana_forms):
+            for tag in form.pri:
+                if tag.startswith("nf"):
+                    try:
+                        return int(tag[2:])
+                    except ValueError:
+                        continue
+    return 0
 
 
 @app.get("/")
@@ -295,9 +348,7 @@ def import_page() -> FileResponse:
     return FileResponse(WEB_DIR / "import.html")
 
 
-def _build_import_response(
-    conn: sqlite3.Connection, text_id: int, text: str
-) -> ImportResponse:
+def _build_import_response(conn: sqlite3.Connection, text_id: int, text: str) -> ImportResponse:
     known = {row[0] for row in conn.execute("SELECT lemma FROM vocab").fetchall()}
     tokens: list[Token] = analyze(text, _tokenizer, _get_dictionary(), known_lemmas=known)
     candidates = collect_candidates(conn, tokens)
@@ -342,9 +393,7 @@ def import_paste(
 
 
 @app.post("/import/url")
-def import_url(
-    req: UrlImportRequest, conn: sqlite3.Connection = Depends(get_db)
-) -> ImportResponse:
+def import_url(req: UrlImportRequest, conn: sqlite3.Connection = Depends(get_db)) -> ImportResponse:
     text = fetch_and_extract(req.url)
     now = datetime.now(timezone.utc).isoformat()
     cur = conn.execute(
@@ -358,9 +407,7 @@ def import_url(
 
 
 @app.post("/import/dom")
-def import_dom(
-    req: DomImportRequest, conn: sqlite3.Connection = Depends(get_db)
-) -> ImportResponse:
+def import_dom(req: DomImportRequest, conn: sqlite3.Connection = Depends(get_db)) -> ImportResponse:
     text = extract_text(req.html)
     now = datetime.now(timezone.utc).isoformat()
     cur = conn.execute(
@@ -380,3 +427,115 @@ def export_apkg_route(conn: sqlite3.Connection = Depends(get_db)) -> FileRespons
     path = tmp / "vocab.apkg"
     export_apkg(conn, path)
     return FileResponse(path, media_type="application/octet-stream", filename="vocab.apkg")
+
+
+@app.get("/quiz-page")
+def quiz_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "quiz.html")
+
+
+@app.get("/quiz/next")
+def quiz_next(
+    type: str = "meaning", conn: sqlite3.Connection = Depends(get_db)
+) -> QuizQuestionResponse:
+    rows = conn.execute(
+        "SELECT lemma, reading, primary_meaning, pos FROM vocab "
+        "WHERE status IN ('learning', 'known')",
+    ).fetchall()
+    pool = [
+        VocabEntry(
+            lemma=r[0],
+            reading=r[1] or "",
+            meaning=r[2] or "",
+            pos=r[3] or "",
+            frequency=_lookup_frequency(r[0]),
+        )
+        for r in rows
+    ]
+
+    if len(pool) < 4:
+        raise HTTPException(
+            status_code=400, detail="Not enough vocabulary for a quiz (need at least 4)"
+        )
+
+    rng = random.Random()
+    if type == "mixed":
+        question = make_mixed_question(pool, rng)
+    elif type == "reading":
+        kanji_pool = [e for e in pool if _contains_kanji(e.lemma)]
+        if len(kanji_pool) < 4:
+            raise HTTPException(
+                status_code=400, detail="Not enough kanji vocabulary for a reading quiz"
+            )
+        target = rng.choice(kanji_pool)
+        question = make_reading_question(target, pool, rng)
+    elif type == "cloze":
+        all_texts = conn.execute("SELECT raw_text FROM texts").fetchall()
+        if not all_texts:
+            raise HTTPException(status_code=400, detail="No texts available for cloze quiz")
+        all_sentences = []
+        for row in all_texts:
+            all_sentences.extend(split_sentences(row[0]))
+
+        candidates = list(pool)
+        rng.shuffle(candidates)
+        question = None
+        for target in candidates:
+            matching = [s for s in all_sentences if target.lemma in s]
+            if matching:
+                sentence = rng.choice(matching)
+                question = make_cloze_question(target, sentence, pool, _tokenizer, rng)
+                break
+        if question is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No sentence found containing any vocabulary word",
+            )
+    else:
+        target = rng.choice(pool)
+        question = make_meaning_question(target, pool, rng)
+
+    qid = str(uuid.uuid4())
+    _pending[qid] = question
+
+    return QuizQuestionResponse(
+        question_id=qid,
+        kind=question.kind,
+        prompt=question.prompt,
+        choices=list(question.choices),
+        context_html=question.context_html,
+    )
+
+
+@app.post("/quiz/answer")
+def quiz_answer(
+    req: QuizAnswerRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> QuizAnswerResponse:
+    question = _pending.pop(req.question_id, None)
+    if question is None:
+        raise HTTPException(status_code=404, detail="Unknown or expired question_id")
+    correct = grade(question, req.choice_index)
+
+    if req.count_as_review and question.target_lemma:
+        row = conn.execute(
+            "SELECT c.id FROM cards c JOIN vocab v ON c.vocab_id = v.id WHERE v.lemma = ?",
+            (question.target_lemma,),
+        ).fetchone()
+        if row:
+            card_db_id = row[0]
+            card = load_card(conn, card_db_id)
+            now = datetime.now(timezone.utc)
+            rating = fsrs.Rating(3 if correct else 1)
+            new_card, _ = review(card, rating, now)
+            update_card(conn, card_db_id, new_card)
+            conn.execute(
+                "INSERT INTO review_logs (card_id, rating, reviewed_at) VALUES (?, ?, ?)",
+                (card_db_id, rating.value, now.isoformat()),
+            )
+            conn.commit()
+
+    return QuizAnswerResponse(
+        correct=correct,
+        correct_index=question.answer_index,
+        correct_answer=question.choices[question.answer_index],
+    )

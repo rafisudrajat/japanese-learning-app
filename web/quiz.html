@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Study Stats</title>
+  <title>Quiz</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -12,13 +12,19 @@
     <a href="/import-page">Import</a>
     <a href="/vocab-page">Vocabulary</a>
     <a href="/review-page">Review</a>
-    <a href="/quiz-page">Quiz</a>
-    <a href="/stats-page" class="active">Stats</a>
+    <a href="/quiz-page" class="active">Quiz</a>
+    <a href="/stats-page">Stats</a>
     <span class="spacer"></span>
     <a href="/export/apkg" class="export-link">Export .apkg</a>
   </nav>
-  <h1>Study Stats</h1>
-  <div id="stats-area"></div>
-  <script src="/static/js/stats.js"></script>
+  <h1>Quiz</h1>
+  <div class="quiz-type-tabs">
+    <button class="tab active" data-type="mixed">Mixed</button>
+    <button class="tab" data-type="meaning">Meaning</button>
+    <button class="tab" data-type="reading">Reading</button>
+    <button class="tab" data-type="cloze">Cloze</button>
+  </div>
+  <div id="quiz-area"></div>
+  <script src="/static/js/quiz.js"></script>
 </body>
 </html>

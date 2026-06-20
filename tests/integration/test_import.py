@@ -1,14 +1,13 @@
 from pathlib import Path
 
-from tests.test_api import _reset_db, _test_db_path, client
+from starlette.testclient import TestClient
 
 from server.db import connect
 
-FIXTURES = Path(__file__).parent / "fixtures"
+FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 
-def test_keep_creates_one_card() -> None:
-    _reset_db()
+def test_keep_creates_one_card(client: TestClient, api_db: Path) -> None:
     client.post(
         "/triage",
         json={
@@ -19,7 +18,7 @@ def test_keep_creates_one_card() -> None:
             "decision": "keep",
         },
     )
-    conn = connect(_test_db_path)
+    conn = connect(api_db)
     cards = conn.execute("SELECT id FROM cards").fetchall()
     assert len(cards) == 1
 
@@ -38,8 +37,7 @@ def test_keep_creates_one_card() -> None:
     assert len(cards) == 1
 
 
-def test_known_creates_no_card() -> None:
-    _reset_db()
+def test_known_creates_no_card(client: TestClient, api_db: Path) -> None:
     client.post(
         "/triage",
         json={
@@ -50,7 +48,7 @@ def test_known_creates_no_card() -> None:
             "decision": "known",
         },
     )
-    conn = connect(_test_db_path)
+    conn = connect(api_db)
     cards = conn.execute("SELECT id FROM cards").fetchall()
     vocab = conn.execute("SELECT status FROM vocab WHERE lemma = '犬'").fetchone()
     conn.close()
@@ -58,13 +56,7 @@ def test_known_creates_no_card() -> None:
     assert vocab[0] == "known"
 
 
-def test_paste_persists_text() -> None:
-    _reset_db()
-    conn = connect(_test_db_path)
-    conn.execute("DELETE FROM texts")
-    conn.commit()
-    conn.close()
-
+def test_paste_persists_text(client: TestClient, api_db: Path) -> None:
     resp = client.post(
         "/import/paste",
         json={"title": "Test Article", "text": "猫が魚を食べた"},
@@ -74,15 +66,16 @@ def test_paste_persists_text() -> None:
     assert "text_id" in data
     assert data["text_id"] > 0
 
-    conn = connect(_test_db_path)
-    row = conn.execute("SELECT source_type, raw_text FROM texts WHERE id = ?", (data["text_id"],)).fetchone()
+    conn = connect(api_db)
+    row = conn.execute(
+        "SELECT source_type, raw_text FROM texts WHERE id = ?", (data["text_id"],)
+    ).fetchone()
     conn.close()
     assert row[0] == "paste"
     assert row[1] == "猫が魚を食べた"
 
 
-def test_paste_returns_candidates() -> None:
-    _reset_db()
+def test_paste_returns_candidates(client: TestClient, api_db: Path) -> None:
     resp = client.post(
         "/import/paste",
         json={"title": "Test", "text": "猫が魚を食べた"},
@@ -94,8 +87,7 @@ def test_paste_returns_candidates() -> None:
     assert "猫" in candidate_lemmas or "魚" in candidate_lemmas or "食べる" in candidate_lemmas
 
 
-def test_already_know_suppresses_future() -> None:
-    _reset_db()
+def test_already_know_suppresses_future(client: TestClient, api_db: Path) -> None:
     client.post(
         "/triage",
         json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞", "decision": "known"},
@@ -108,8 +100,7 @@ def test_already_know_suppresses_future() -> None:
     assert "猫" not in candidate_lemmas
 
 
-def test_dom_import_runs_pipeline() -> None:
-    _reset_db()
+def test_dom_import_runs_pipeline(client: TestClient, api_db: Path) -> None:
     html = (FIXTURES / "article_with_nav.html").read_text()
     resp = client.post("/import/dom", json={"html": html})
     assert resp.status_code == 200

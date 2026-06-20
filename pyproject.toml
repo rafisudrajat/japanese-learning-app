@@ -29,7 +29,11 @@ include = ["server*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-p", "no:launch_testing", "-p", "no:launch_pytest", "-p", "no:launch_testing_ros"]
+# Disable ROS' launch_testing pytest plugins, which leak in from a system
+# /opt/ros install and crash collection ("unknown hook
+# pytest_launch_collect_makemodule"). The entrypoint is registered as
+# `launch_ros`; disabling it alongside `launch_testing` keeps collection clean.
+addopts = ["-p", "no:launch_ros", "-p", "no:launch_testing"]
 
 [tool.ruff]
 target-version = "py311"
