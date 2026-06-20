@@ -1,5 +1,5 @@
 from server.analyze import Token
-from server.render import render_ruby
+from server.render import render_ruby, render_word
 
 
 def _make_token(surface: str, reading_hiragana: str, **kw: object) -> Token:
@@ -29,3 +29,17 @@ def test_surface_is_escaped() -> None:
     assert "&lt;" in result
     assert "&gt;" in result
     assert "<猫>" not in result
+
+
+def test_word_payload_carries_meanings() -> None:
+    t = _make_token("猫", "ねこ", meanings=["cat"])
+    result = render_word(t)
+    assert 'data-lemma="猫"' in result
+    assert 'data-reading="ねこ"' in result
+    assert "cat" in result
+
+
+def test_empty_meanings_payload() -> None:
+    t = _make_token("猫", "ねこ", meanings=[])
+    result = render_word(t)
+    assert 'data-meanings="[]"' in result

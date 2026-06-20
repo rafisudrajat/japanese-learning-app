@@ -27,7 +27,31 @@ body {
   padding: 0 1px;
 }
 
+.word {
+  position: relative;
+}
+
 .word:hover {
   background: #e0e7ff;
   border-radius: 3px;
+}
+
+.popover {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.popover ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
 }
