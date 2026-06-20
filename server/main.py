@@ -1,5 +1,7 @@
+import random
 import sqlite3
 import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,6 +16,15 @@ import fsrs
 
 from server.analyze import Token, analyze
 from server.db import connect, delete_vocab, load_card, save_card, update_card, upsert_vocab
+from server.quiz import (
+    Question,
+    VocabEntry,
+    make_cloze_question,
+    make_meaning_question,
+    make_reading_question,
+    split_sentences,
+)
+from server.render import _contains_kanji
 from server.scheduler import review
 from server.export import export_apkg
 from server.stats import compute_stats
@@ -149,6 +160,17 @@ class UrlImportRequest(BaseModel):
 
 class DomImportRequest(BaseModel):
     html: str
+
+
+class QuizQuestionResponse(BaseModel):
+    question_id: str
+    kind: str
+    prompt: str
+    choices: list[str]
+    context_html: str | None
+
+
+_pending: dict[str, Question] = {}
 
 
 @app.get("/")
@@ -295,9 +317,7 @@ def import_page() -> FileResponse:
     return FileResponse(WEB_DIR / "import.html")
 
 
-def _build_import_response(
-    conn: sqlite3.Connection, text_id: int, text: str
-) -> ImportResponse:
+def _build_import_response(conn: sqlite3.Connection, text_id: int, text: str) -> ImportResponse:
     known = {row[0] for row in conn.execute("SELECT lemma FROM vocab").fetchall()}
     tokens: list[Token] = analyze(text, _tokenizer, _get_dictionary(), known_lemmas=known)
     candidates = collect_candidates(conn, tokens)
@@ -342,9 +362,7 @@ def import_paste(
 
 
 @app.post("/import/url")
-def import_url(
-    req: UrlImportRequest, conn: sqlite3.Connection = Depends(get_db)
-) -> ImportResponse:
+def import_url(req: UrlImportRequest, conn: sqlite3.Connection = Depends(get_db)) -> ImportResponse:
     text = fetch_and_extract(req.url)
     now = datetime.now(timezone.utc).isoformat()
     cur = conn.execute(
@@ -358,9 +376,7 @@ def import_url(
 
 
 @app.post("/import/dom")
-def import_dom(
-    req: DomImportRequest, conn: sqlite3.Connection = Depends(get_db)
-) -> ImportResponse:
+def import_dom(req: DomImportRequest, conn: sqlite3.Connection = Depends(get_db)) -> ImportResponse:
     text = extract_text(req.html)
     now = datetime.now(timezone.utc).isoformat()
     cur = conn.execute(
@@ -380,3 +396,66 @@ def export_apkg_route(conn: sqlite3.Connection = Depends(get_db)) -> FileRespons
     path = tmp / "vocab.apkg"
     export_apkg(conn, path)
     return FileResponse(path, media_type="application/octet-stream", filename="vocab.apkg")
+
+
+@app.get("/quiz/next")
+def quiz_next(
+    type: str = "meaning", conn: sqlite3.Connection = Depends(get_db)
+) -> QuizQuestionResponse:
+    rows = conn.execute(
+        "SELECT lemma, reading, primary_meaning, pos FROM vocab "
+        "WHERE status IN ('learning', 'known')",
+    ).fetchall()
+    pool = [
+        VocabEntry(lemma=r[0], reading=r[1] or "", meaning=r[2] or "", pos=r[3] or "") for r in rows
+    ]
+
+    if len(pool) < 4:
+        raise HTTPException(
+            status_code=400, detail="Not enough vocabulary for a quiz (need at least 4)"
+        )
+
+    rng = random.Random()
+    if type == "reading":
+        kanji_pool = [e for e in pool if _contains_kanji(e.lemma)]
+        if len(kanji_pool) < 4:
+            raise HTTPException(
+                status_code=400, detail="Not enough kanji vocabulary for a reading quiz"
+            )
+        target = rng.choice(kanji_pool)
+        question = make_reading_question(target, pool, rng)
+    elif type == "cloze":
+        target = rng.choice(pool)
+        text_row = conn.execute(
+            "SELECT t.raw_text FROM texts t JOIN vocab v ON v.first_seen_text_id = t.id "
+            "WHERE v.lemma = ?",
+            (target.lemma,),
+        ).fetchone()
+        if text_row is None:
+            text_row = conn.execute(
+                "SELECT raw_text FROM texts ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        if text_row is None:
+            raise HTTPException(status_code=400, detail="No texts available for cloze quiz")
+        sentences = split_sentences(text_row[0])
+        matching = [s for s in sentences if target.lemma in s]
+        if not matching:
+            raise HTTPException(
+                status_code=400, detail="No sentence found containing the target word"
+            )
+        sentence = rng.choice(matching)
+        question = make_cloze_question(target, sentence, pool, _tokenizer, rng)
+    else:
+        target = rng.choice(pool)
+        question = make_meaning_question(target, pool, rng)
+
+    qid = str(uuid.uuid4())
+    _pending[qid] = question
+
+    return QuizQuestionResponse(
+        question_id=qid,
+        kind=question.kind,
+        prompt=question.prompt,
+        choices=list(question.choices),
+        context_html=question.context_html,
+    )

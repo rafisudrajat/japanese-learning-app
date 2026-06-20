@@ -131,9 +131,7 @@ def test_delete_vocab_removes_word_and_cascades(
 
     conn = connect(api_db)
     cards = conn.execute("SELECT id FROM cards WHERE vocab_id = ?", (vocab_id,)).fetchall()
-    logs = conn.execute(
-        "SELECT id FROM review_logs WHERE card_id = ?", (card_db_id,)
-    ).fetchall()
+    logs = conn.execute("SELECT id FROM review_logs WHERE card_id = ?", (card_db_id,)).fetchall()
     conn.close()
     assert cards == []
     assert logs == []
@@ -155,3 +153,56 @@ def test_queue_respects_due(client: TestClient, api_db: Path) -> None:
     now = datetime.now(timezone.utc).isoformat()
     queue = client.get("/review/queue", params={"now": now}).json()
     assert not any(c["lemma"] == "犬" for c in queue["cards"])
+
+
+# ---------------------------------------------------------------------------
+# Step 4.1 — GET /quiz/next
+# ---------------------------------------------------------------------------
+
+_QUIZ_VOCAB = [
+    ("猫", "ねこ", "cat", "名詞"),
+    ("犬", "いぬ", "dog", "名詞"),
+    ("鳥", "とり", "bird", "名詞"),
+    ("魚", "さかな", "fish", "名詞"),
+    ("本", "ほん", "book", "名詞"),
+    ("花", "はな", "flower", "名詞"),
+]
+
+QUIZ_QUESTION_FIELDS = {"question_id", "kind", "prompt", "choices", "context_html"}
+
+
+def _seed_quiz_vocab(db_path: Path) -> None:
+    conn = connect(db_path)
+    for lemma, reading, meaning, pos in _QUIZ_VOCAB:
+        vocab_id = upsert_vocab(conn, lemma, reading, meaning, pos, now="2025-01-01T00:00:00")
+        conn.execute("UPDATE vocab SET status = 'learning' WHERE id = ?", (vocab_id,))
+    conn.commit()
+    conn.close()
+
+
+def test_quiz_next_shape(client: TestClient, api_db: Path) -> None:
+    _seed_quiz_vocab(api_db)
+    resp = client.get("/quiz/next", params={"type": "meaning"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert set(data.keys()) == QUIZ_QUESTION_FIELDS
+    assert len(data["choices"]) == 4
+    assert "answer_index" not in data
+
+
+def test_quiz_next_reading_prompt_has_kanji(client: TestClient, api_db: Path) -> None:
+    _seed_quiz_vocab(api_db)
+    resp = client.get("/quiz/next", params={"type": "reading"})
+    assert resp.status_code == 200
+    prompt = resp.json()["prompt"]
+    assert any("一" <= c <= "鿿" for c in prompt)
+
+
+def test_quiz_next_too_few_vocab_400(client: TestClient, api_db: Path) -> None:
+    conn = connect(api_db)
+    upsert_vocab(conn, "猫", "ねこ", "cat", "名詞", now="2025-01-01T00:00:00")
+    conn.execute("UPDATE vocab SET status = 'learning' WHERE lemma = '猫'")
+    conn.commit()
+    conn.close()
+    resp = client.get("/quiz/next", params={"type": "meaning"})
+    assert resp.status_code == 400
