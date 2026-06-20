@@ -149,3 +149,7 @@ def make_cloze_question(
         answer_index=pos,
         target_lemma=target.lemma,
     )
+
+
+def grade(question: Question, choice_index: int) -> bool:
+    return 0 <= choice_index < len(question.choices) and choice_index == question.answer_index

@@ -3,8 +3,10 @@ import random
 import pytest
 
 from server.quiz import (
+    Question,
     VocabEntry,
     blank_target,
+    grade,
     make_cloze_question,
     make_meaning_question,
     make_reading_question,
@@ -267,3 +269,26 @@ def test_cloze_question_invariants(tokenizer) -> None:
     assert len(q.choices) == 4
     assert len(set(q.choices)) == 4
     assert 0 <= q.answer_index < 4
+
+
+# ---------------------------------------------------------------------------
+# Step 3.1 — grade()
+# ---------------------------------------------------------------------------
+
+_GRADE_Q = Question(
+    kind="meaning",
+    prompt="猫",
+    choices=("cat", "dog", "bird", "fish"),
+    answer_index=2,
+    target_lemma="猫",
+)
+
+
+def test_grade_correct_and_incorrect() -> None:
+    assert grade(_GRADE_Q, 2) is True
+    assert grade(_GRADE_Q, 0) is False
+
+
+def test_grade_out_of_range() -> None:
+    assert grade(_GRADE_Q, 99) is False
+    assert grade(_GRADE_Q, -1) is False
