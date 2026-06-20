@@ -71,6 +71,8 @@ Raw Japanese text
 | `cards` | FSRS scheduling state per vocab entry (state, stability, difficulty, due, last_review) |
 | `review_logs` | Every review rating + timestamp (drives stats and FSRS optimization) |
 
+See [doc/DB-doc.md](doc/DB-doc.md) for the full schema — every column, the table relationships, and the delete-cascade behavior.
+
 ## Tech stack
 
 | Concern | Library | License |
@@ -98,6 +100,10 @@ Raw Japanese text
 # Clone the repository
 git clone <repository-url>
 cd japanese-learning-app
+
+# Create and activate a virtual environment first
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
 # Install dependencies (using uv)
 uv pip install -e ".[dev]"
@@ -169,16 +175,3 @@ pyinstaller app.spec
 ```
 
 The built binary will be in `dist/japanese-reader`. Resource paths are resolved at runtime via `server/resources.py`, which detects whether the app is running from source or from a PyInstaller bundle (`sys._MEIPASS`).
-
-## Project status
-
-The project follows a phased TDD roadmap defined in [ROADMAP.md](ROADMAP.md). Current status:
-
-- **Phase 0** — Foundations & spikes (tokenizer, dictionary, ADR)
-- **Phase 1** — Analysis engine (tokenize, kana conversion, dictionary lookup, analyze pipeline, caching)
-- **Phase 2** — Reader UI (API endpoint, furigana rendering, pywebview shell, word popover)
-- **Phase 3** — Vocabulary storage (schema, upsert dedupe, save endpoint, known-word styling)
-- **Phase 5** — Spaced repetition (FSRS schema, scheduler, card persistence, review UI, triage-to-card)
-- **Phase 6** — Polish & packaging (per-kanji furigana, FSRS optimization, stats, Anki export, PyInstaller)
-
-Phase 4 (import tiers: paste intake, POS filter, candidate collection, URL fetch, DOM import) is planned but not yet implemented.
