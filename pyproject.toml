@@ -1,0 +1,32 @@
+[project]
+name = "japanese-reader"
+version = "0.1.0"
+description = "Local-first Japanese reading + spaced-repetition desktop app"
+requires-python = ">=3.11"
+dependencies = [
+    "sudachipy",
+    "sudachidict_core",
+    "jamdict",
+    "jamdict-data",
+    "jaconv",
+    "fsrs",
+    "trafilatura",
+    "fastapi",
+    "uvicorn",
+    "pywebview",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "httpx",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-p", "no:launch_testing", "-p", "no:launch_pytest", "-p", "no:launch_testing_ros"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
