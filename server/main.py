@@ -1,11 +1,18 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import sudachipy
 import jamdict
 
 from server.analyze import Token, analyze
 
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+
 app = FastAPI()
+app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 _tokenizer = sudachipy.Dictionary().create()
 _dictionary = jamdict.Jamdict()
@@ -28,6 +35,11 @@ class TokenResponse(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     tokens: list[TokenResponse]
+
+
+@app.get("/")
+def index() -> FileResponse:
+    return FileResponse(WEB_DIR / "index.html")
 
 
 @app.post("/analyze")
