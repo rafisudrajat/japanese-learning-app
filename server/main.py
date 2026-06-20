@@ -14,6 +14,7 @@ import fsrs
 from server.analyze import Token, analyze
 from server.db import connect, load_card, save_card, update_card, upsert_vocab
 from server.scheduler import review
+from server.stats import compute_stats
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "app.db"
@@ -91,6 +92,12 @@ class AnswerRequest(BaseModel):
 
 class AnswerResponse(BaseModel):
     next_due: str
+
+
+class StatsResponse(BaseModel):
+    accuracy: float
+    total_reviews: int
+    reviews_per_day: dict[str, int]
 
 
 class TriageRequest(BaseModel):
@@ -219,3 +226,18 @@ def triage_word(req: TriageRequest, conn: sqlite3.Connection = Depends(get_db)) 
         if existing is None:
             save_card(conn, vocab_id, fsrs.Card())
     return TriageResponse(vocab_id=vocab_id, status=status)
+
+
+@app.get("/stats-page")
+def stats_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "stats.html")
+
+
+@app.get("/stats")
+def get_stats(conn: sqlite3.Connection = Depends(get_db)) -> StatsResponse:
+    s = compute_stats(conn)
+    return StatsResponse(
+        accuracy=s.accuracy,
+        total_reviews=s.total_reviews,
+        reviews_per_day=s.reviews_per_day,
+    )
