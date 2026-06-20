@@ -116,6 +116,8 @@ python app.py
 
 This starts the FastAPI server on `127.0.0.1:8764` and opens a native pywebview window.
 
+On first run, the app creates a `data/app.db` SQLite database in the project root to hold your vocabulary, cards, and review history. The `data/` directory is created automatically and is gitignored — it is your personal data and never committed.
+
 **Browser mode (recommended for development):**
 
 ```bash

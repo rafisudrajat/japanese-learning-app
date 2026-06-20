@@ -5,6 +5,8 @@ import fsrs
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
+    if str(path) != ":memory:":
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript("""
