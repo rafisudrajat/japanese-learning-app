@@ -1,8 +1,11 @@
 import sqlite3
+from datetime import datetime, timezone
 
+import fsrs
 import pytest
 
-from server.db import upsert_vocab
+from server.db import load_card, save_card, update_card, upsert_vocab
+from server.scheduler import review
 
 
 def test_schema_creates_tables(db: sqlite3.Connection) -> None:
@@ -64,3 +67,22 @@ def test_distinct_lemmas_create_distinct_rows(db: sqlite3.Connection) -> None:
     upsert_vocab(db, "犬", "いぬ", "dog", "名詞", now="2025-01-01T00:00:00")
     count = db.execute("SELECT COUNT(*) FROM vocab").fetchone()[0]
     assert count == 2
+
+
+def test_card_round_trip_schedules_identically(db: sqlite3.Connection) -> None:
+    vocab_id = upsert_vocab(db, "猫", "ねこ", "cat", "名詞", now="2025-01-01T00:00:00")
+    now1 = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    card = fsrs.Card()
+    reviewed, _log = review(card, fsrs.Rating.Good, now1, enable_fuzzing=False)
+
+    card_db_id = save_card(db, vocab_id, reviewed)
+    update_card(db, card_db_id, reviewed)
+    loaded = load_card(db, card_db_id)
+
+    now2 = datetime(2025, 6, 2, tzinfo=timezone.utc)
+    card_a, _ = review(reviewed, fsrs.Rating.Good, now2, enable_fuzzing=False)
+    card_b, _ = review(loaded, fsrs.Rating.Good, now2, enable_fuzzing=False)
+
+    assert card_a.due == card_b.due
+    assert card_a.stability == card_b.stability
+    assert card_a.difficulty == card_b.difficulty
