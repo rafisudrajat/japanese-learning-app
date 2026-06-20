@@ -1,6 +1,6 @@
 import random
 
-from server.quiz import VocabEntry, sample_one
+from server.quiz import VocabEntry, pick_distractors, sample_one
 
 
 def make_pool(specs: list[tuple[str, str, str, str]]) -> list[VocabEntry]:
@@ -39,3 +39,77 @@ def test_seeded_rng_is_reproducible() -> None:
     assert draw(0) == draw(0)
     # Different seed → different sequence.
     assert draw(0) != draw(1)
+
+
+NOUN_POOL = [
+    ("猫", "ねこ", "cat", "名詞"),
+    ("犬", "いぬ", "dog", "名詞"),
+    ("鳥", "とり", "bird", "名詞"),
+    ("魚", "さかな", "fish", "名詞"),
+    ("本", "ほん", "book", "名詞"),
+]
+
+
+def test_distractors_exclude_target() -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[0]  # 猫
+    distractors = pick_distractors(target, pool, 3, random.Random(0))
+    assert len(distractors) == 3
+    assert all(d.lemma != target.lemma for d in distractors)
+    assert len({d.lemma for d in distractors}) == 3
+
+
+def test_distractors_prefer_same_pos() -> None:
+    pool = make_pool(
+        [
+            ("猫", "ねこ", "cat", "名詞"),
+            ("犬", "いぬ", "dog", "名詞"),
+            ("鳥", "とり", "bird", "名詞"),
+            ("魚", "さかな", "fish", "名詞"),
+            ("走る", "はしる", "to run", "動詞"),
+            ("食べる", "たべる", "to eat", "動詞"),
+            ("見る", "みる", "to see", "動詞"),
+            ("飲む", "のむ", "to drink", "動詞"),
+        ]
+    )
+    target = pool[0]  # 猫 (名詞)
+    distractors = pick_distractors(target, pool, 3, random.Random(0))
+    assert len(distractors) == 3
+    assert all(d.pos == "名詞" for d in distractors)
+
+
+def test_distractors_fallback_when_too_few_same_pos() -> None:
+    pool = make_pool(
+        [
+            ("猫", "ねこ", "cat", "名詞"),
+            ("犬", "いぬ", "dog", "名詞"),
+            ("走る", "はしる", "to run", "動詞"),
+            ("食べる", "たべる", "to eat", "動詞"),
+            ("見る", "みる", "to see", "動詞"),
+            ("飲む", "のむ", "to drink", "動詞"),
+            ("寝る", "ねる", "to sleep", "動詞"),
+        ]
+    )
+    target = pool[0]  # 猫 (名詞); only 1 other noun available
+    distractors = pick_distractors(target, pool, 3, random.Random(0))
+    assert len(distractors) == 3
+    assert all(d.lemma != target.lemma for d in distractors)
+    assert any(d.pos == "名詞" for d in distractors)
+    assert any(d.pos == "動詞" for d in distractors)
+
+
+def test_distractors_small_pool() -> None:
+    pool = make_pool(NOUN_POOL[:3])  # 3 entries; minus the target ⇒ 2 usable
+    target = pool[0]
+    distractors = pick_distractors(target, pool, 3, random.Random(0))
+    assert len(distractors) == 2
+    assert len({d.lemma for d in distractors}) == 2
+    assert all(d.lemma != target.lemma for d in distractors)
+
+
+def test_distractors_deterministic() -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[0]
+    first = pick_distractors(target, pool, 3, random.Random(0))
+    second = pick_distractors(target, pool, 3, random.Random(0))
+    assert first == second
