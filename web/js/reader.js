@@ -103,7 +103,11 @@ document.getElementById("reader-output").addEventListener("click", (e) => {
       <button class="keep-btn">Keep</button>
       <button class="know-btn">Already know</button>
     </div>`;
-  word.appendChild(popover);
+  document.body.appendChild(popover);
+  const rect = word.getBoundingClientRect();
+  popover.style.left = Math.max(4, rect.left + rect.width / 2 - popover.offsetWidth / 2) + "px";
+  popover.style.top = (rect.top - popover.offsetHeight - 8 + window.scrollY) + "px";
+  popover.style.position = "absolute";
 
   async function triage(decision) {
     const resp = await fetch("/triage", {
