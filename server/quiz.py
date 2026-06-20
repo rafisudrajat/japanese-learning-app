@@ -80,3 +80,29 @@ def make_reading_question(
         answer_index=pos,
         target_lemma=target.lemma,
     )
+
+
+def make_meaning_question(
+    target: VocabEntry, pool: list[VocabEntry], rng: random.Random
+) -> Question:
+    distractors = pick_distractors(target, pool, 3, rng)
+    distractor_meanings = [d.meaning for d in distractors if d.meaning != target.meaning]
+    while len(distractor_meanings) < 3 and len(distractor_meanings) < len(
+        [e for e in pool if e.lemma != target.lemma and e.meaning != target.meaning]
+    ):
+        extra = pick_distractors(target, pool, 3, rng)
+        for d in extra:
+            if d.meaning != target.meaning and d.meaning not in distractor_meanings:
+                distractor_meanings.append(d.meaning)
+                if len(distractor_meanings) == 3:
+                    break
+    choices = distractor_meanings[:3]
+    pos = rng.randrange(len(choices) + 1)
+    choices.insert(pos, target.meaning)
+    return Question(
+        kind="meaning",
+        prompt=target.lemma,
+        choices=tuple(choices),
+        answer_index=pos,
+        target_lemma=target.lemma,
+    )

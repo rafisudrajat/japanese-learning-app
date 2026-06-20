@@ -2,7 +2,13 @@ import random
 
 import pytest
 
-from server.quiz import VocabEntry, make_reading_question, pick_distractors, sample_one
+from server.quiz import (
+    VocabEntry,
+    make_meaning_question,
+    make_reading_question,
+    pick_distractors,
+    sample_one,
+)
 
 
 def make_pool(specs: list[tuple[str, str, str, str]]) -> list[VocabEntry]:
@@ -147,3 +153,38 @@ def test_reading_question_rejects_kana_only() -> None:
     kana_target = VocabEntry("ねこ", "ねこ", "cat", "名詞")
     with pytest.raises(ValueError):
         make_reading_question(kana_target, pool, random.Random(0))
+
+
+# ---------------------------------------------------------------------------
+# Step 2.2 — Meaning quiz (type B: recall)
+# ---------------------------------------------------------------------------
+
+
+def test_meaning_question_golden() -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[0]  # 猫 / ねこ / cat / 名詞
+    q = make_meaning_question(target, pool, random.Random(0))
+    assert q.kind == "meaning"
+    assert q.prompt == "猫"
+    assert q.choices[q.answer_index] == "cat"
+    assert q.target_lemma == "猫"
+
+
+def test_meaning_distractors_are_other_words() -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[0]  # cat
+    q = make_meaning_question(target, pool, random.Random(0))
+    meanings_of_others = {e.meaning for e in pool if e.lemma != target.lemma}
+    for i, choice in enumerate(q.choices):
+        if i != q.answer_index:
+            assert choice in meanings_of_others
+            assert choice != target.meaning
+
+
+def test_meaning_question_invariants() -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[0]
+    q = make_meaning_question(target, pool, random.Random(0))
+    assert len(q.choices) == 4
+    assert len(set(q.choices)) == 4
+    assert 0 <= q.answer_index < 4
