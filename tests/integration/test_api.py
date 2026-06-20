@@ -277,3 +277,15 @@ def test_quiz_answer_updates_review_log(client: TestClient, api_db: Path) -> Non
     conn.close()
     assert len(logs) == 1
     assert logs[0][0] == expected_rating
+
+
+# ---------------------------------------------------------------------------
+# Step 5.1 — GET /quiz-page
+# ---------------------------------------------------------------------------
+
+
+def test_quiz_page_served(client: TestClient) -> None:
+    resp = client.get("/quiz-page")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "quiz.js" in resp.text

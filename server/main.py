@@ -411,6 +411,11 @@ def export_apkg_route(conn: sqlite3.Connection = Depends(get_db)) -> FileRespons
     return FileResponse(path, media_type="application/octet-stream", filename="vocab.apkg")
 
 
+@app.get("/quiz-page")
+def quiz_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "quiz.html")
+
+
 @app.get("/quiz/next")
 def quiz_next(
     type: str = "meaning", conn: sqlite3.Connection = Depends(get_db)
