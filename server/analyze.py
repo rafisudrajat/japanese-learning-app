@@ -53,3 +53,19 @@ def analyze(text: str, tokenizer: Tokenizer, dictionary: Jamdict) -> list[Token]
         )
         for raw in tokenize(text, tokenizer)
     ]
+
+
+class CachedAnalyzer:
+    def __init__(self, tokenizer: Tokenizer, dictionary: Jamdict) -> None:
+        self._tokenizer = tokenizer
+        self._dictionary = dictionary
+        self._cache: dict[str, list[Token]] = {}
+        self.tokenize_calls: int = 0
+
+    def __call__(self, text: str) -> list[Token]:
+        if text in self._cache:
+            return self._cache[text]
+        self.tokenize_calls += 1
+        result = analyze(text, self._tokenizer, self._dictionary)
+        self._cache[text] = result
+        return result

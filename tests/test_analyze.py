@@ -1,7 +1,7 @@
 from jamdict import Jamdict
 from sudachipy.tokenizer import Tokenizer
 
-from server.analyze import RawToken, Token, analyze, to_hiragana, tokenize
+from server.analyze import CachedAnalyzer, RawToken, Token, analyze, to_hiragana, tokenize
 
 
 def test_tokenize_lemma_and_reading(tokenizer: Tokenizer) -> None:
@@ -47,3 +47,19 @@ def test_analyze_emits_all_fields(tokenizer: Tokenizer, dictionary: Jamdict) -> 
         assert isinstance(t.meanings, list)
         assert isinstance(t.pos, tuple) and len(t.pos) > 0
         assert t.known is False
+
+
+def test_cache_returns_equal_result(tokenizer: Tokenizer, dictionary: Jamdict) -> None:
+    cached = CachedAnalyzer(tokenizer, dictionary)
+    text = "猫を見た"
+    cached(text)
+    assert cached(text) == analyze(text, tokenizer, dictionary)
+
+
+def test_cache_hits_skip_tokenizer(tokenizer: Tokenizer, dictionary: Jamdict) -> None:
+    cached = CachedAnalyzer(tokenizer, dictionary)
+    text = "猫を見た"
+    cached(text)
+    assert cached.tokenize_calls == 1
+    cached(text)
+    assert cached.tokenize_calls == 1
