@@ -32,8 +32,25 @@ document.getElementById("reader-output").addEventListener("click", (e) => {
   const meaningsHtml = meanings.length > 0
     ? meanings.map(m => `<li>${m}</li>`).join("")
     : "<li>(no dictionary entry)</li>";
-  popover.innerHTML = `<strong>${reading}</strong><ul>${meaningsHtml}</ul>`;
+  popover.innerHTML = `<strong>${reading}</strong><ul>${meaningsHtml}</ul><button class="save-btn" data-lemma="${lemma}" data-reading="${reading}" data-meaning="${meanings[0] || ''}">Save</button>`;
   word.appendChild(popover);
+
+  popover.querySelector(".save-btn").addEventListener("click", async (ev) => {
+    ev.stopPropagation();
+    const btn = ev.target;
+    await fetch("/vocab", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        lemma: btn.dataset.lemma,
+        reading: btn.dataset.reading,
+        meaning: btn.dataset.meaning,
+        pos: word.dataset.pos || "",
+      }),
+    });
+    btn.textContent = "Saved";
+    btn.disabled = true;
+  });
 });
 
 document.addEventListener("click", (e) => {
