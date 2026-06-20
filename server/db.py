@@ -81,6 +81,18 @@ def upsert_vocab(
     return row[0]
 
 
+def delete_vocab(conn: sqlite3.Connection, vocab_id: int) -> bool:
+    conn.execute(
+        "DELETE FROM review_logs WHERE card_id IN "
+        "(SELECT id FROM cards WHERE vocab_id = ?)",
+        (vocab_id,),
+    )
+    conn.execute("DELETE FROM cards WHERE vocab_id = ?", (vocab_id,))
+    cur = conn.execute("DELETE FROM vocab WHERE id = ?", (vocab_id,))
+    conn.commit()
+    return cur.rowcount > 0
+
+
 def save_card(conn: sqlite3.Connection, vocab_id: int, card: fsrs.Card) -> int:
     d = card.to_dict()
     cur = conn.execute(

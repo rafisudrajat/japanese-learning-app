@@ -3,7 +3,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -13,7 +13,7 @@ import jamdict
 import fsrs
 
 from server.analyze import Token, analyze
-from server.db import connect, load_card, save_card, update_card, upsert_vocab
+from server.db import connect, delete_vocab, load_card, save_card, update_card, upsert_vocab
 from server.scheduler import review
 from server.export import export_apkg
 from server.stats import compute_stats
@@ -211,6 +211,13 @@ def list_vocab(
             for r in rows
         ]
     )
+
+
+@app.delete("/vocab/{vocab_id}")
+def remove_vocab(vocab_id: int, conn: sqlite3.Connection = Depends(get_db)) -> dict[str, bool]:
+    if not delete_vocab(conn, vocab_id):
+        raise HTTPException(status_code=404, detail="Vocab not found")
+    return {"deleted": True}
 
 
 @app.get("/review-page")

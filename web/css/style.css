@@ -280,6 +280,22 @@ h1 {
   color: #374151;
 }
 
+.vocab-item .delete-btn {
+  float: right;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.vocab-item .delete-btn:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
 .stat-card {
   background: #f9fafb;
   border: 1px solid #eee;

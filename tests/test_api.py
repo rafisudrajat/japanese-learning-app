@@ -152,6 +152,36 @@ def test_answer_advances_and_logs() -> None:
     assert logs[0][1] == 3
 
 
+def test_delete_vocab_removes_word_and_cascades() -> None:
+    _reset_db()
+    card_db_id = _create_due_card("猫")
+    client.post("/review/answer", json={"card_db_id": card_db_id, "rating": 3})
+
+    vocab = client.get("/vocab").json()["vocab"]
+    assert len(vocab) == 1
+    vocab_id = vocab[0]["id"]
+
+    resp = client.delete(f"/vocab/{vocab_id}")
+    assert resp.status_code == 200
+
+    assert client.get("/vocab").json()["vocab"] == []
+
+    conn = connect(_test_db_path)
+    cards = conn.execute("SELECT id FROM cards WHERE vocab_id = ?", (vocab_id,)).fetchall()
+    logs = conn.execute(
+        "SELECT id FROM review_logs WHERE card_id = ?", (card_db_id,)
+    ).fetchall()
+    conn.close()
+    assert cards == []
+    assert logs == []
+
+
+def test_delete_missing_vocab_returns_404() -> None:
+    _reset_db()
+    resp = client.delete("/vocab/99999")
+    assert resp.status_code == 404
+
+
 def test_queue_respects_due() -> None:
     _reset_db()
     conn = connect(_test_db_path)
