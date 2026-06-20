@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/">Reader</a>
+    <a href="/import-page" class="active">Import</a>
+    <a href="/vocab-page">Vocabulary</a>
+    <a href="/review-page">Review</a>
+    <a href="/stats-page">Stats</a>
+    <span class="spacer"></span>
+    <a href="/export/apkg" class="export-link">Export .apkg</a>
+  </nav>
+  <h1>Import Article</h1>
+
+  <div class="import-tabs">
+    <button class="tab active" data-tab="paste">Paste text</button>
+    <button class="tab" data-tab="url">From URL</button>
+  </div>
+
+  <div id="paste-panel" class="import-panel">
+    <input id="paste-title" type="text" placeholder="Title (optional)">
+    <textarea id="paste-text" rows="8" placeholder="Paste Japanese article text here..."></textarea>
+    <button id="paste-btn" class="primary-btn">Import</button>
+  </div>
+
+  <div id="url-panel" class="import-panel" style="display:none">
+    <input id="url-input" type="url" placeholder="https://example.com/article">
+    <button id="url-btn" class="primary-btn">Fetch &amp; Import</button>
+  </div>
+
+  <div id="status-msg"></div>
+  <div id="candidates-area"></div>
+  <script src="/static/js/import.js"></script>
+</body>
+</html>

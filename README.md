@@ -108,11 +108,23 @@ pip install -e ".[dev]"
 
 ### Running the app
 
+**Native window (pywebview):**
+
 ```bash
 python app.py
 ```
 
-This starts the FastAPI server on `127.0.0.1:8764` and opens a native pywebview window with the reader.
+This starts the FastAPI server on `127.0.0.1:8764` and opens a native pywebview window.
+
+**Browser mode (recommended for development):**
+
+```bash
+python app.py --browser
+```
+
+This starts the server and opens `http://127.0.0.1:8764` in your default browser instead of pywebview. Useful for inspecting elements and debugging with browser DevTools.
+
+You can also run both modes simultaneously — the server is accessible at `http://127.0.0.1:8764` in any browser while the native window is open.
 
 ### Running tests
 

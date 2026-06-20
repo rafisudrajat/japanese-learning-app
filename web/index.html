@@ -4,13 +4,40 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Japanese Reader</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+  <nav>
+    <a href="/" class="active">Reader</a>
+    <a href="/import-page">Import</a>
+    <a href="/vocab-page">Vocabulary</a>
+    <a href="/review-page">Review</a>
+    <a href="/stats-page">Stats</a>
+    <span class="spacer"></span>
+    <a href="/export/apkg" class="export-link">Export .apkg</a>
+  </nav>
   <h1>Japanese Reader</h1>
-  <textarea id="text-input" rows="6" placeholder="Paste Japanese text here…"></textarea>
-  <button id="analyze-btn">Analyze</button>
+
+  <div class="reader-tabs">
+    <button class="tab active" data-tab="paste">Paste text</button>
+    <button class="tab" data-tab="url">Fetch from URL</button>
+  </div>
+
+  <div id="paste-panel" class="reader-panel">
+    <textarea id="text-input" rows="6" placeholder="Paste Japanese text here..."></textarea>
+    <button id="analyze-btn" class="primary-btn">Analyze</button>
+  </div>
+
+  <div id="url-panel" class="reader-panel" style="display:none">
+    <input id="url-input" type="url" placeholder="https://example.com/japanese-article">
+    <button id="fetch-btn" class="primary-btn">Fetch &amp; Read</button>
+  </div>
+
+  <div id="reader-status"></div>
+  <div id="reader-toolbar">
+    <button id="furigana-toggle" class="toolbar-btn active" title="Toggle furigana">振り仮名 On</button>
+  </div>
   <div id="reader-output"></div>
-  <script src="/static/reader.js"></script>
+  <script src="/static/js/reader.js"></script>
 </body>
 </html>

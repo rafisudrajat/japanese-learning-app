@@ -1,6 +1,10 @@
+from pathlib import Path
+
 from tests.test_api import _reset_db, _test_db_path, client
 
 from server.db import connect
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_keep_creates_one_card() -> None:
@@ -52,3 +56,63 @@ def test_known_creates_no_card() -> None:
     conn.close()
     assert len(cards) == 0
     assert vocab[0] == "known"
+
+
+def test_paste_persists_text() -> None:
+    _reset_db()
+    conn = connect(_test_db_path)
+    conn.execute("DELETE FROM texts")
+    conn.commit()
+    conn.close()
+
+    resp = client.post(
+        "/import/paste",
+        json={"title": "Test Article", "text": "猫が魚を食べた"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "text_id" in data
+    assert data["text_id"] > 0
+
+    conn = connect(_test_db_path)
+    row = conn.execute("SELECT source_type, raw_text FROM texts WHERE id = ?", (data["text_id"],)).fetchone()
+    conn.close()
+    assert row[0] == "paste"
+    assert row[1] == "猫が魚を食べた"
+
+
+def test_paste_returns_candidates() -> None:
+    _reset_db()
+    resp = client.post(
+        "/import/paste",
+        json={"title": "Test", "text": "猫が魚を食べた"},
+    )
+    data = resp.json()
+    assert len(data["tokens"]) > 0
+    assert len(data["candidates"]) > 0
+    candidate_lemmas = {c["lemma"] for c in data["candidates"]}
+    assert "猫" in candidate_lemmas or "魚" in candidate_lemmas or "食べる" in candidate_lemmas
+
+
+def test_already_know_suppresses_future() -> None:
+    _reset_db()
+    client.post(
+        "/triage",
+        json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞", "decision": "known"},
+    )
+    resp = client.post(
+        "/import/paste",
+        json={"title": "Test", "text": "猫が魚を食べた"},
+    )
+    candidate_lemmas = {c["lemma"] for c in resp.json()["candidates"]}
+    assert "猫" not in candidate_lemmas
+
+
+def test_dom_import_runs_pipeline() -> None:
+    _reset_db()
+    html = (FIXTURES / "article_with_nav.html").read_text()
+    resp = client.post("/import/dom", json={"html": html})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["text_id"] > 0
+    assert len(data["tokens"]) > 0

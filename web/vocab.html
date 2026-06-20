@@ -3,13 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vocab List</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <title>Vocabulary</title>
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+  <nav>
+    <a href="/">Reader</a>
+    <a href="/import-page">Import</a>
+    <a href="/vocab-page" class="active">Vocabulary</a>
+    <a href="/review-page">Review</a>
+    <a href="/stats-page">Stats</a>
+    <span class="spacer"></span>
+    <a href="/export/apkg" class="export-link">Export .apkg</a>
+  </nav>
   <h1>Vocabulary</h1>
-  <input id="search" type="text" placeholder="Search…">
+  <input id="search" type="text" placeholder="Search words...">
   <div id="vocab-list"></div>
-  <script src="/static/vocab.js"></script>
+  <script src="/static/js/vocab.js"></script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from server.db import connect, load_card, save_card, update_card, upsert_vocab
 from server.scheduler import review
 from server.export import export_apkg
 from server.stats import compute_stats
+from server.importer.extract import extract_text, fetch_and_extract
+from server.importer.vocab_intake import collect_candidates
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "app.db"
@@ -24,7 +27,14 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 _tokenizer = sudachipy.Dictionary().create()
-_dictionary = jamdict.Jamdict()
+_thread_local = threading.local()
+
+
+def _get_dictionary() -> jamdict.Jamdict:
+    if not hasattr(_thread_local, "dictionary"):
+        _thread_local.dictionary = jamdict.Jamdict()
+    return _thread_local.dictionary
+
 
 HOST = "127.0.0.1"
 
@@ -114,6 +124,33 @@ class TriageResponse(BaseModel):
     status: str
 
 
+class PasteImportRequest(BaseModel):
+    title: str
+    text: str
+
+
+class CandidateResponse(BaseModel):
+    lemma: str
+    reading: str
+    meanings: list[str]
+    pos: str
+    frequency: int
+
+
+class ImportResponse(BaseModel):
+    text_id: int
+    tokens: list[TokenResponse]
+    candidates: list[CandidateResponse]
+
+
+class UrlImportRequest(BaseModel):
+    url: str
+
+
+class DomImportRequest(BaseModel):
+    html: str
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
@@ -129,7 +166,7 @@ def analyze_endpoint(
     req: AnalyzeRequest, conn: sqlite3.Connection = Depends(get_db)
 ) -> AnalyzeResponse:
     known = {row[0] for row in conn.execute("SELECT lemma FROM vocab").fetchall()}
-    tokens: list[Token] = analyze(req.text, _tokenizer, _dictionary, known_lemmas=known)
+    tokens: list[Token] = analyze(req.text, _tokenizer, _get_dictionary(), known_lemmas=known)
     return AnalyzeResponse(
         tokens=[
             TokenResponse(
@@ -242,6 +279,88 @@ def get_stats(conn: sqlite3.Connection = Depends(get_db)) -> StatsResponse:
         total_reviews=s.total_reviews,
         reviews_per_day=s.reviews_per_day,
     )
+
+
+@app.get("/import-page")
+def import_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "import.html")
+
+
+def _build_import_response(
+    conn: sqlite3.Connection, text_id: int, text: str
+) -> ImportResponse:
+    known = {row[0] for row in conn.execute("SELECT lemma FROM vocab").fetchall()}
+    tokens: list[Token] = analyze(text, _tokenizer, _get_dictionary(), known_lemmas=known)
+    candidates = collect_candidates(conn, tokens)
+    return ImportResponse(
+        text_id=text_id,
+        tokens=[
+            TokenResponse(
+                surface=t.surface,
+                reading_hiragana=t.reading_hiragana,
+                lemma=t.lemma,
+                meanings=t.meanings,
+                pos=list(t.pos),
+                known=t.known,
+            )
+            for t in tokens
+        ],
+        candidates=[
+            CandidateResponse(
+                lemma=c.lemma,
+                reading=c.reading,
+                meanings=c.meanings,
+                pos=c.pos,
+                frequency=c.frequency,
+            )
+            for c in candidates
+        ],
+    )
+
+
+@app.post("/import/paste")
+def import_paste(
+    req: PasteImportRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> ImportResponse:
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        "INSERT INTO texts (title, source_type, raw_text, created_at) VALUES (?, 'paste', ?, ?)",
+        (req.title, req.text, now),
+    )
+    conn.commit()
+    text_id = cur.lastrowid
+    return _build_import_response(conn, text_id, req.text)
+
+
+@app.post("/import/url")
+def import_url(
+    req: UrlImportRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> ImportResponse:
+    text = fetch_and_extract(req.url)
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        "INSERT INTO texts (title, source_type, source_url, raw_text, created_at) "
+        "VALUES (?, 'url', ?, ?, ?)",
+        (req.url, req.url, text, now),
+    )
+    conn.commit()
+    text_id = cur.lastrowid
+    return _build_import_response(conn, text_id, text)
+
+
+@app.post("/import/dom")
+def import_dom(
+    req: DomImportRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> ImportResponse:
+    text = extract_text(req.html)
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        "INSERT INTO texts (title, source_type, raw_text, created_at) VALUES (?, 'dom', ?, ?)",
+        ("Browser import", text, now),
+    )
+    conn.commit()
+    text_id = cur.lastrowid
+    return _build_import_response(conn, text_id, text)
 
 
 @app.get("/export/apkg")

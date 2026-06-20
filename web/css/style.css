@@ -1,0 +1,456 @@
+body {
+  font-family: "Noto Sans JP", sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 1rem 2rem;
+}
+
+nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+nav a {
+  text-decoration: none;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  color: #333;
+  font-size: 0.95rem;
+  transition: background 0.15s;
+}
+
+nav a:hover {
+  background: #e0e7ff;
+}
+
+nav a.active {
+  background: #4f46e5;
+  color: #fff;
+}
+
+nav .spacer {
+  flex: 1;
+}
+
+nav .export-link {
+  font-size: 0.85rem;
+  color: #666;
+  border: 1px solid #ccc;
+  padding: 0.3rem 0.7rem;
+}
+
+nav .export-link:hover {
+  background: #f3f4f6;
+}
+
+h1 {
+  margin-top: 0;
+}
+
+#text-input {
+  width: 100%;
+  font-size: 1.1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.7rem;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+#analyze-btn {
+  margin: 0.5rem 0;
+  padding: 0.5rem 1.4rem;
+  font-size: 1rem;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#analyze-btn:hover {
+  background: #4338ca;
+}
+
+#reader-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.toolbar-btn {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #f3f4f6;
+  color: #666;
+}
+
+.toolbar-btn.active {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+}
+
+#reader-output {
+  font-size: 1.4rem;
+  line-height: 2.5;
+  margin-top: 1rem;
+}
+
+#reader-output.hide-furigana rt {
+  visibility: hidden;
+}
+
+.word {
+  cursor: pointer;
+  padding: 0 1px;
+  position: relative;
+}
+
+.word.known {
+  opacity: 0.5;
+}
+
+.word:hover {
+  background: #e0e7ff;
+  border-radius: 3px;
+}
+
+.popover {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.popover ul {
+  margin: 0.3rem 0 0.5rem;
+  padding-left: 1.2rem;
+}
+
+.popover .triage-btns {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.popover .triage-btns button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+
+.popover .triage-btns .keep-btn {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+}
+
+.popover .triage-btns .keep-btn:hover {
+  background: #4338ca;
+}
+
+.popover .triage-btns .know-btn {
+  background: #f3f4f6;
+}
+
+.popover .triage-btns .know-btn:hover {
+  background: #e5e7eb;
+}
+
+.popover .triage-btns button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.word.saved {
+  background: #dcfce7;
+  border-radius: 3px;
+}
+
+.review-card {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.review-word {
+  font-size: 2.5rem;
+  margin: 1.5rem 0;
+}
+
+#rating-btns {
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+#rating-btns button, #show-btn {
+  padding: 0.5rem 1.2rem;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  margin: 0 0.3rem;
+}
+
+#show-btn {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+}
+
+#search {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+  margin-bottom: 1rem;
+}
+
+.vocab-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.vocab-item .lemma {
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+.vocab-item .detail {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.vocab-item .status {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.5rem;
+}
+
+.vocab-item .status.learning {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.vocab-item .status.known {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.vocab-item .status.new {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.stat-card {
+  background: #f9fafb;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card .value {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #4f46e5;
+}
+
+.stat-card .label {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.no-data {
+  text-align: center;
+  color: #999;
+  margin-top: 3rem;
+  font-size: 1.1rem;
+}
+
+.primary-btn {
+  padding: 0.5rem 1.4rem;
+  font-size: 1rem;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary-btn:hover {
+  background: #4338ca;
+}
+
+.reader-tabs,
+.import-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.reader-tabs .tab,
+.import-tabs .tab {
+  padding: 0.5rem 1.2rem;
+  font-size: 1rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  color: #666;
+}
+
+.reader-tabs .tab.active,
+.import-tabs .tab.active {
+  color: #4f46e5;
+  border-bottom-color: #4f46e5;
+  font-weight: 600;
+}
+
+.reader-panel input[type="url"],
+.import-panel input[type="text"],
+.import-panel input[type="url"] {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+  margin-bottom: 0.7rem;
+}
+
+.import-panel textarea {
+  width: 100%;
+  font-size: 1.1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.7rem;
+  box-sizing: border-box;
+  resize: vertical;
+  margin-bottom: 0.7rem;
+}
+
+.status-ok {
+  color: #166534;
+  margin: 0.7rem 0;
+}
+
+.status-error {
+  color: #dc2626;
+  margin: 0.7rem 0;
+}
+
+.candidate {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #eee;
+  flex-wrap: wrap;
+}
+
+.candidate-word {
+  min-width: 80px;
+}
+
+.candidate-word strong {
+  font-size: 1.1rem;
+}
+
+.freq-badge {
+  font-size: 0.75rem;
+  background: #e0e7ff;
+  color: #4338ca;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.3rem;
+}
+
+.candidate-detail {
+  flex: 1;
+  color: #555;
+  font-size: 0.9rem;
+  min-width: 150px;
+}
+
+.candidate-btns {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.candidate-btns button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+
+.candidate-btns .keep-btn {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+}
+
+.candidate-btns .keep-btn:hover {
+  background: #4338ca;
+}
+
+.candidate-btns .know-btn {
+  background: #f3f4f6;
+}
+
+.candidate-btns .know-btn:hover {
+  background: #e5e7eb;
+}
+
+.candidate-actions {
+  margin: 0.7rem 0;
+}
+
+.triaged {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.triaged.kept {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.triaged.known-mark {
+  background: #dcfce7;
+  color: #166534;
+}

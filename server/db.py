@@ -5,7 +5,7 @@ import fsrs
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS texts (
@@ -92,7 +92,7 @@ def save_card(conn: sqlite3.Connection, vocab_id: int, card: fsrs.Card) -> int:
             vocab_id,
             d["card_id"],
             d["state"],
-            d["step"],
+            d.get("step", 0) or 0,
             d["stability"],
             d["difficulty"],
             d["due"],
@@ -116,7 +116,7 @@ def update_card(conn: sqlite3.Connection, card_db_id: int, card: fsrs.Card) -> N
         """,
         (
             d["state"],
-            d["step"],
+            d.get("step", 0) or 0,
             d["stability"],
             d["difficulty"],
             d["due"],

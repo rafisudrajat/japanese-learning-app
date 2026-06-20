@@ -1,6 +1,8 @@
+import sys
 import threading
 import time
 import urllib.request
+import webbrowser
 
 import uvicorn
 
@@ -25,10 +27,21 @@ def start_server(host: str = HOST, port: int = PORT) -> threading.Thread:
 
 def main() -> None:
     start_server()
-    import webview
+    url = f"http://{HOST}:{PORT}/"
 
-    webview.create_window("Japanese Reader", f"http://{HOST}:{PORT}/")
-    webview.start()
+    if "--browser" in sys.argv:
+        print(f"Opening {url} in your default browser...")
+        webbrowser.open(url)
+        print("Press Ctrl+C to stop the server.")
+        try:
+            threading.Event().wait()
+        except KeyboardInterrupt:
+            pass
+    else:
+        import webview
+
+        webview.create_window("Japanese Reader", url)
+        webview.start()
 
 
 if __name__ == "__main__":

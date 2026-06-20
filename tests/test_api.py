@@ -28,6 +28,7 @@ def _reset_db() -> None:
     conn.execute("DELETE FROM review_logs")
     conn.execute("DELETE FROM cards")
     conn.execute("DELETE FROM vocab")
+    conn.execute("DELETE FROM texts")
     conn.commit()
     conn.close()
 
