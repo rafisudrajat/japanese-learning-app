@@ -28,6 +28,25 @@ def connect(path: str | Path) -> sqlite3.Connection:
             first_seen_text_id INTEGER REFERENCES texts(id),
             created_at      TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS cards (
+            id          INTEGER PRIMARY KEY,
+            vocab_id    INTEGER NOT NULL REFERENCES vocab(id),
+            card_id     INTEGER NOT NULL,
+            state       INTEGER NOT NULL DEFAULT 1,
+            step        INTEGER NOT NULL DEFAULT 0,
+            stability   REAL,
+            difficulty  REAL,
+            due         TEXT NOT NULL,
+            last_review TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS review_logs (
+            id          INTEGER PRIMARY KEY,
+            card_id     INTEGER NOT NULL REFERENCES cards(id),
+            rating      INTEGER NOT NULL,
+            reviewed_at TEXT NOT NULL
+        );
     """)
     conn.commit()
     return conn

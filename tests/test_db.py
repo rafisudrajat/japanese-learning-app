@@ -7,10 +7,7 @@ from server.db import upsert_vocab
 
 def test_schema_creates_tables(db: sqlite3.Connection) -> None:
     tables = {
-        row[0]
-        for row in db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     }
     assert "texts" in tables
     assert "vocab" in tables
@@ -39,6 +36,27 @@ def test_inflections_dedupe_to_one_row(db: sqlite3.Connection) -> None:
     rows = db.execute("SELECT seen_count FROM vocab WHERE lemma = '食べる'").fetchall()
     assert len(rows) == 1
     assert rows[0][0] == 3
+
+
+def test_cards_and_logs_schema(db: sqlite3.Connection) -> None:
+    tables = {
+        row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+    }
+    assert "cards" in tables
+    assert "review_logs" in tables
+
+    card_cols = {row[1] for row in db.execute("PRAGMA table_info(cards)").fetchall()}
+    assert "vocab_id" in card_cols
+    assert "state" in card_cols
+    assert "stability" in card_cols
+    assert "difficulty" in card_cols
+    assert "due" in card_cols
+    assert "last_review" in card_cols
+
+    log_cols = {row[1] for row in db.execute("PRAGMA table_info(review_logs)").fetchall()}
+    assert "card_id" in log_cols
+    assert "rating" in log_cols
+    assert "reviewed_at" in log_cols
 
 
 def test_distinct_lemmas_create_distinct_rows(db: sqlite3.Connection) -> None:
