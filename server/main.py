@@ -195,9 +195,11 @@ def list_vocab(
     q: str | None = None, conn: sqlite3.Connection = Depends(get_db)
 ) -> VocabListResponse:
     if q:
+        like = f"%{q}%"
         rows = conn.execute(
-            "SELECT id, lemma, reading, primary_meaning, status FROM vocab WHERE lemma LIKE ?",
-            (f"%{q}%",),
+            "SELECT id, lemma, reading, primary_meaning, status FROM vocab "
+            "WHERE lemma LIKE ? OR reading LIKE ? OR primary_meaning LIKE ?",
+            (like, like, like),
         ).fetchall()
     else:
         rows = conn.execute(

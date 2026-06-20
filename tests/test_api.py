@@ -99,6 +99,27 @@ def test_vocab_search_filters() -> None:
     assert vocab[0]["lemma"] == "猫"
 
 
+def test_vocab_search_by_reading_and_meaning() -> None:
+    _reset_db()
+    client.post(
+        "/vocab",
+        json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞"},
+    )
+    client.post(
+        "/vocab",
+        json={"lemma": "犬", "reading": "いぬ", "meaning": "dog", "pos": "名詞"},
+    )
+    # by kana reading
+    by_kana = client.get("/vocab", params={"q": "ねこ"}).json()["vocab"]
+    assert [v["lemma"] for v in by_kana] == ["猫"]
+    # by English meaning (case-insensitive)
+    by_meaning = client.get("/vocab", params={"q": "Cat"}).json()["vocab"]
+    assert [v["lemma"] for v in by_meaning] == ["猫"]
+    # by kanji still works
+    by_kanji = client.get("/vocab", params={"q": "犬"}).json()["vocab"]
+    assert [v["lemma"] for v in by_kanji] == ["犬"]
+
+
 def _create_due_card(lemma: str = "猫") -> int:
     conn = connect(_test_db_path)
     vocab_id = upsert_vocab(conn, lemma, "ねこ", "cat", "名詞", now="2025-01-01T00:00:00")
