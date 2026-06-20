@@ -1,6 +1,8 @@
 import random
 
-from server.quiz import VocabEntry, pick_distractors, sample_one
+import pytest
+
+from server.quiz import VocabEntry, make_reading_question, pick_distractors, sample_one
 
 
 def make_pool(specs: list[tuple[str, str, str, str]]) -> list[VocabEntry]:
@@ -113,3 +115,35 @@ def test_distractors_deterministic() -> None:
     first = pick_distractors(target, pool, 3, random.Random(0))
     second = pick_distractors(target, pool, 3, random.Random(0))
     assert first == second
+
+
+# ---------------------------------------------------------------------------
+# Step 2.1 — Reading quiz (type A: 漢字読み)
+# ---------------------------------------------------------------------------
+
+
+def test_reading_question_golden() -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[0]  # 猫 / ねこ / cat / 名詞
+    q = make_reading_question(target, pool, random.Random(0))
+    assert q.kind == "reading"
+    assert q.prompt == "猫"
+    assert "ねこ" in q.choices
+    assert q.choices[q.answer_index] == "ねこ"
+    assert q.target_lemma == "猫"
+
+
+def test_reading_question_invariants() -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[0]
+    q = make_reading_question(target, pool, random.Random(0))
+    assert len(q.choices) == 4
+    assert len(set(q.choices)) == 4
+    assert 0 <= q.answer_index < 4
+
+
+def test_reading_question_rejects_kana_only() -> None:
+    pool = make_pool(NOUN_POOL)
+    kana_target = VocabEntry("ねこ", "ねこ", "cat", "名詞")
+    with pytest.raises(ValueError):
+        make_reading_question(kana_target, pool, random.Random(0))

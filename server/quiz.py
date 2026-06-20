@@ -9,6 +9,8 @@ takes an injected ``random.Random`` so questions are reproducible under a seed
 import random
 from dataclasses import dataclass
 
+from server.render import _contains_kanji
+
 
 @dataclass(frozen=True)
 class VocabEntry:
@@ -18,6 +20,16 @@ class VocabEntry:
     reading: str
     meaning: str
     pos: str
+
+
+@dataclass(frozen=True)
+class Question:
+    kind: str
+    prompt: str
+    choices: tuple[str, ...]
+    answer_index: int
+    context_html: str | None = None
+    target_lemma: str = ""
 
 
 def sample_one(pool: list[VocabEntry], rng: random.Random) -> VocabEntry:
@@ -50,3 +62,21 @@ def pick_distractors(
     rng.shuffle(other)
     ordered = same + other
     return ordered[:n]
+
+
+def make_reading_question(
+    target: VocabEntry, pool: list[VocabEntry], rng: random.Random
+) -> Question:
+    if not _contains_kanji(target.lemma):
+        raise ValueError(f"target lemma {target.lemma!r} contains no kanji")
+    distractors = pick_distractors(target, pool, 3, rng)
+    choices = [d.reading for d in distractors]
+    pos = rng.randrange(len(choices) + 1)
+    choices.insert(pos, target.reading)
+    return Question(
+        kind="reading",
+        prompt=target.lemma,
+        choices=tuple(choices),
+        answer_index=pos,
+        target_lemma=target.lemma,
+    )
