@@ -1,0 +1,38 @@
+# Local virtual environment (huge, host-specific)
+.venv/
+venv/
+env/
+ENV/
+
+# User's personal database — never bake it into the image
+data/
+
+# Version control & assistant metadata
+.git/
+.gitignore
+.claude/
+
+# Python caches & build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editor settings
+.vscode/
+.idea/
+
+# Not needed inside the runtime image
+tests/
+spike/
+doc/
+app.spec
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+docker-compose.yml

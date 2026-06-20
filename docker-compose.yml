@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    image: japanese-reader
+    container_name: japanese-reader
+    # Publish to localhost only — keeps the "never a public server" design decision.
+    ports:
+      - "127.0.0.1:8764:8764"
+    # Persist the vocabulary database on the host, same path as a native run.
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

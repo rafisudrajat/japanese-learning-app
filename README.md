@@ -149,6 +149,52 @@ ruff check .
 ruff format .
 ```
 
+## Running with Docker
+
+The desktop (pywebview) shell needs a GUI, so it cannot run inside a container. The image
+instead runs the **FastAPI engine directly** and serves the same web UI on port `8764` —
+equivalent to `python app.py --browser`. You open it in your own browser. Your vocabulary
+database is persisted on the host through a volume, so it survives container rebuilds.
+
+The dictionaries (SudachiDict, JMdict) are installed into the image at build time, so the
+container needs no network access at runtime. The container publishes only to `127.0.0.1`,
+keeping the "localhost only, never a public server" design decision intact.
+
+### With Docker Compose (recommended)
+
+```bash
+# Build the image and start the container in the background
+docker compose up -d --build
+
+# Open the app in your browser
+#   http://localhost:8764
+
+# Follow logs / stop
+docker compose logs -f
+docker compose down
+```
+
+Your data lives in `./data/app.db` on the host (bind-mounted into the container) — the same
+location used when running natively.
+
+### With plain Docker
+
+```bash
+# Build the image
+docker build -t japanese-reader .
+
+# Run it — publishes to localhost only, persists the DB under ./data
+docker run -d --name japanese-reader \
+  -p 127.0.0.1:8764:8764 \
+  -v "$(pwd)/data:/app/data" \
+  japanese-reader
+
+# Open http://localhost:8764 ; stop with:
+docker rm -f japanese-reader
+```
+
+The first request after startup may take a moment while the dictionary loads.
+
 ## API endpoints
 
 | Method | Path | Description |
