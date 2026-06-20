@@ -127,3 +127,25 @@ def blank_target(sentence: str, target_lemma: str, tokenizer: Tokenizer) -> tupl
             blanked = sentence[:start] + "____" + sentence[end:]
             return blanked, surface
     raise ValueError(f"lemma {target_lemma!r} not found in sentence")
+
+
+def make_cloze_question(
+    target: VocabEntry,
+    sentence: str,
+    pool: list[VocabEntry],
+    tokenizer: Tokenizer,
+    rng: random.Random,
+) -> Question:
+    blanked, removed_surface = blank_target(sentence, target.lemma, tokenizer)
+    correct = removed_surface if removed_surface != target.lemma else target.lemma
+    distractors = pick_distractors(target, pool, 3, rng)
+    choices = [d.lemma for d in distractors]
+    pos = rng.randrange(len(choices) + 1)
+    choices.insert(pos, correct)
+    return Question(
+        kind="cloze",
+        prompt=blanked,
+        choices=tuple(choices),
+        answer_index=pos,
+        target_lemma=target.lemma,
+    )

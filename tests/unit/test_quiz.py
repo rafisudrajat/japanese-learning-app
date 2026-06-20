@@ -5,6 +5,7 @@ import pytest
 from server.quiz import (
     VocabEntry,
     blank_target,
+    make_cloze_question,
     make_meaning_question,
     make_reading_question,
     pick_distractors,
@@ -227,3 +228,42 @@ def test_blank_target_uses_surface_of_lemma(tokenizer) -> None:
 def test_blank_target_missing_raises(tokenizer) -> None:
     with pytest.raises(ValueError):
         blank_target("猫が魚を食べた。", "飲む", tokenizer)
+
+
+# ---------------------------------------------------------------------------
+# Step 2.4 — Cloze quiz (type C: 文脈規定)
+# ---------------------------------------------------------------------------
+
+
+def test_cloze_question_golden(tokenizer) -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[3]  # 魚 / さかな / fish / 名詞
+    sentence = "猫が魚を食べた。"
+    q = make_cloze_question(target, sentence, pool, tokenizer, random.Random(0))
+    assert q.kind == "cloze"
+    assert "____" in q.prompt
+    assert "魚" in q.choices
+    assert q.choices[q.answer_index] == "魚"
+    assert q.target_lemma == "魚"
+
+
+def test_cloze_distractors_same_pos(tokenizer) -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[3]  # 魚 (名詞)
+    sentence = "猫が魚を食べた。"
+    q = make_cloze_question(target, sentence, pool, tokenizer, random.Random(0))
+    for i, choice in enumerate(q.choices):
+        if i != q.answer_index:
+            matching = [e for e in pool if e.lemma == choice]
+            assert matching, f"distractor {choice!r} not found in pool"
+            assert matching[0].pos == target.pos
+
+
+def test_cloze_question_invariants(tokenizer) -> None:
+    pool = make_pool(NOUN_POOL)
+    target = pool[3]
+    sentence = "猫が魚を食べた。"
+    q = make_cloze_question(target, sentence, pool, tokenizer, random.Random(0))
+    assert len(q.choices) == 4
+    assert len(set(q.choices)) == 4
+    assert 0 <= q.answer_index < 4
