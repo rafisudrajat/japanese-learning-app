@@ -19,6 +19,7 @@ from server.db import connect, delete_vocab, load_card, save_card, update_card, 
 from server.quiz import (
     Question,
     VocabEntry,
+    grade,
     make_cloze_question,
     make_meaning_question,
     make_reading_question,
@@ -168,6 +169,17 @@ class QuizQuestionResponse(BaseModel):
     prompt: str
     choices: list[str]
     context_html: str | None
+
+
+class QuizAnswerRequest(BaseModel):
+    question_id: str
+    choice_index: int
+
+
+class QuizAnswerResponse(BaseModel):
+    correct: bool
+    correct_index: int
+    correct_answer: str
 
 
 _pending: dict[str, Question] = {}
@@ -458,4 +470,17 @@ def quiz_next(
         prompt=question.prompt,
         choices=list(question.choices),
         context_html=question.context_html,
+    )
+
+
+@app.post("/quiz/answer")
+def quiz_answer(req: QuizAnswerRequest) -> QuizAnswerResponse:
+    question = _pending.pop(req.question_id, None)
+    if question is None:
+        raise HTTPException(status_code=404, detail="Unknown or expired question_id")
+    correct = grade(question, req.choice_index)
+    return QuizAnswerResponse(
+        correct=correct,
+        correct_index=question.answer_index,
+        correct_answer=question.choices[question.answer_index],
     )

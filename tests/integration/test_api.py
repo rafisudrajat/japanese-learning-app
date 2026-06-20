@@ -206,3 +206,35 @@ def test_quiz_next_too_few_vocab_400(client: TestClient, api_db: Path) -> None:
     conn.close()
     resp = client.get("/quiz/next", params={"type": "meaning"})
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Step 4.2 — POST /quiz/answer
+# ---------------------------------------------------------------------------
+
+
+def test_quiz_answer_correct_flow(client: TestClient, api_db: Path) -> None:
+    _seed_quiz_vocab(api_db)
+    q = client.get("/quiz/next", params={"type": "meaning"}).json()
+    qid = q["question_id"]
+    choices = q["choices"]
+
+    resp = client.post("/quiz/answer", json={"question_id": qid, "choice_index": 0})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "correct" in data
+    assert "correct_index" in data
+    assert "correct_answer" in data
+    assert data["correct_answer"] == choices[data["correct_index"]]
+    if data["correct_index"] == 0:
+        assert data["correct"] is True
+    else:
+        assert data["correct"] is False
+
+
+def test_quiz_answer_unknown_id_404(client: TestClient, api_db: Path) -> None:
+    resp = client.post(
+        "/quiz/answer",
+        json={"question_id": "00000000-0000-0000-0000-000000000000", "choice_index": 0},
+    )
+    assert resp.status_code == 404
