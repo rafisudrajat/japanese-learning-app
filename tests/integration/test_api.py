@@ -1,5 +1,3 @@
-import sqlite3
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -7,33 +5,11 @@ import fsrs
 from starlette.testclient import TestClient
 
 from server.db import connect, save_card, upsert_vocab
-from server.main import app, get_db
 
 TOKEN_FIELDS = {"surface", "reading_hiragana", "lemma", "meanings", "pos", "known"}
 
-_tmp = tempfile.mkdtemp()
-_test_db_path = Path(_tmp) / "test_api.db"
 
-
-def _override_db() -> sqlite3.Connection:
-    return connect(_test_db_path)
-
-
-app.dependency_overrides[get_db] = _override_db
-client = TestClient(app)
-
-
-def _reset_db() -> None:
-    conn = connect(_test_db_path)
-    conn.execute("DELETE FROM review_logs")
-    conn.execute("DELETE FROM cards")
-    conn.execute("DELETE FROM vocab")
-    conn.execute("DELETE FROM texts")
-    conn.commit()
-    conn.close()
-
-
-def test_analyze_endpoint_shape() -> None:
+def test_analyze_endpoint_shape(client: TestClient, api_db: Path) -> None:
     resp = client.post("/analyze", json={"text": "猫を見た"})
     assert resp.status_code == 200
     data = resp.json()
@@ -48,14 +24,13 @@ def test_analyze_endpoint_shape() -> None:
     assert cat["known"] is False
 
 
-def test_analyze_endpoint_empty_text() -> None:
+def test_analyze_endpoint_empty_text(client: TestClient, api_db: Path) -> None:
     resp = client.post("/analyze", json={"text": ""})
     assert resp.status_code == 200
     assert resp.json()["tokens"] == []
 
 
-def test_save_word() -> None:
-    _reset_db()
+def test_save_word(client: TestClient, api_db: Path) -> None:
     resp = client.post(
         "/vocab",
         json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞"},
@@ -68,8 +43,7 @@ def test_save_word() -> None:
     assert any(v["lemma"] == "猫" for v in resp2.json()["vocab"])
 
 
-def test_save_word_twice_is_idempotent() -> None:
-    _reset_db()
+def test_save_word_twice_is_idempotent(client: TestClient, api_db: Path) -> None:
     client.post(
         "/vocab",
         json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞"},
@@ -83,8 +57,7 @@ def test_save_word_twice_is_idempotent() -> None:
     assert len(cats) == 1
 
 
-def test_vocab_search_filters() -> None:
-    _reset_db()
+def test_vocab_search_filters(client: TestClient, api_db: Path) -> None:
     client.post(
         "/vocab",
         json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞"},
@@ -99,8 +72,7 @@ def test_vocab_search_filters() -> None:
     assert vocab[0]["lemma"] == "猫"
 
 
-def test_vocab_search_by_reading_and_meaning() -> None:
-    _reset_db()
+def test_vocab_search_by_reading_and_meaning(client: TestClient, api_db: Path) -> None:
     client.post(
         "/vocab",
         json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞"},
@@ -120,18 +92,8 @@ def test_vocab_search_by_reading_and_meaning() -> None:
     assert [v["lemma"] for v in by_kanji] == ["犬"]
 
 
-def _create_due_card(lemma: str = "猫") -> int:
-    conn = connect(_test_db_path)
-    vocab_id = upsert_vocab(conn, lemma, "ねこ", "cat", "名詞", now="2025-01-01T00:00:00")
-    card = fsrs.Card()
-    card_db_id = save_card(conn, vocab_id, card)
-    conn.close()
-    return card_db_id
-
-
-def test_answer_advances_and_logs() -> None:
-    _reset_db()
-    card_db_id = _create_due_card()
+def test_answer_advances_and_logs(client: TestClient, api_db: Path, make_due_card) -> None:
+    card_db_id = make_due_card()
 
     now = datetime.now(timezone.utc).isoformat()
     queue_before = client.get("/review/queue", params={"now": now}).json()
@@ -143,7 +105,7 @@ def test_answer_advances_and_logs() -> None:
     queue_after = client.get("/review/queue", params={"now": now}).json()
     assert not any(c["card_db_id"] == card_db_id for c in queue_after["cards"])
 
-    conn = connect(_test_db_path)
+    conn = connect(api_db)
     logs = conn.execute(
         "SELECT card_id, rating FROM review_logs WHERE card_id = ?", (card_db_id,)
     ).fetchall()
@@ -152,9 +114,10 @@ def test_answer_advances_and_logs() -> None:
     assert logs[0][1] == 3
 
 
-def test_delete_vocab_removes_word_and_cascades() -> None:
-    _reset_db()
-    card_db_id = _create_due_card("猫")
+def test_delete_vocab_removes_word_and_cascades(
+    client: TestClient, api_db: Path, make_due_card
+) -> None:
+    card_db_id = make_due_card("猫")
     client.post("/review/answer", json={"card_db_id": card_db_id, "rating": 3})
 
     vocab = client.get("/vocab").json()["vocab"]
@@ -166,7 +129,7 @@ def test_delete_vocab_removes_word_and_cascades() -> None:
 
     assert client.get("/vocab").json()["vocab"] == []
 
-    conn = connect(_test_db_path)
+    conn = connect(api_db)
     cards = conn.execute("SELECT id FROM cards WHERE vocab_id = ?", (vocab_id,)).fetchall()
     logs = conn.execute(
         "SELECT id FROM review_logs WHERE card_id = ?", (card_db_id,)
@@ -176,15 +139,13 @@ def test_delete_vocab_removes_word_and_cascades() -> None:
     assert logs == []
 
 
-def test_delete_missing_vocab_returns_404() -> None:
-    _reset_db()
+def test_delete_missing_vocab_returns_404(client: TestClient, api_db: Path) -> None:
     resp = client.delete("/vocab/99999")
     assert resp.status_code == 404
 
 
-def test_queue_respects_due() -> None:
-    _reset_db()
-    conn = connect(_test_db_path)
+def test_queue_respects_due(client: TestClient, api_db: Path) -> None:
+    conn = connect(api_db)
     vocab_id = upsert_vocab(conn, "犬", "いぬ", "dog", "名詞", now="2025-01-01T00:00:00")
     card = fsrs.Card()
     card.__dict__["due"] = datetime(2099, 1, 1, tzinfo=timezone.utc)

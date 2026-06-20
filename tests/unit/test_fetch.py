@@ -2,7 +2,7 @@ from pathlib import Path
 
 from server.importer.extract import decode_html, extract_text
 
-FIXTURES = Path(__file__).parent / "fixtures"
+FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 
 def test_shift_jis_decodes() -> None:
