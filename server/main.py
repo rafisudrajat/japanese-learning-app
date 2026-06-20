@@ -12,7 +12,7 @@ import jamdict
 import fsrs
 
 from server.analyze import Token, analyze
-from server.db import connect, load_card, update_card, upsert_vocab
+from server.db import connect, load_card, save_card, update_card, upsert_vocab
 from server.scheduler import review
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -91,6 +91,19 @@ class AnswerRequest(BaseModel):
 
 class AnswerResponse(BaseModel):
     next_due: str
+
+
+class TriageRequest(BaseModel):
+    lemma: str
+    reading: str
+    meaning: str
+    pos: str
+    decision: str
+
+
+class TriageResponse(BaseModel):
+    vocab_id: int
+    status: str
 
 
 @app.get("/")
@@ -192,3 +205,17 @@ def review_answer(req: AnswerRequest, conn: sqlite3.Connection = Depends(get_db)
     )
     conn.commit()
     return AnswerResponse(next_due=new_card.due.isoformat())
+
+
+@app.post("/triage")
+def triage_word(req: TriageRequest, conn: sqlite3.Connection = Depends(get_db)) -> TriageResponse:
+    now = datetime.now(timezone.utc).isoformat()
+    status = "learning" if req.decision == "keep" else "known"
+    vocab_id = upsert_vocab(conn, req.lemma, req.reading, req.meaning, req.pos, now=now)
+    conn.execute("UPDATE vocab SET status = ? WHERE id = ?", (status, vocab_id))
+    conn.commit()
+    if req.decision == "keep":
+        existing = conn.execute("SELECT id FROM cards WHERE vocab_id = ?", (vocab_id,)).fetchone()
+        if existing is None:
+            save_card(conn, vocab_id, fsrs.Card())
+    return TriageResponse(vocab_id=vocab_id, status=status)
