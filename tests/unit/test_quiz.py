@@ -4,10 +4,12 @@ import pytest
 
 from server.quiz import (
     VocabEntry,
+    blank_target,
     make_meaning_question,
     make_reading_question,
     pick_distractors,
     sample_one,
+    split_sentences,
 )
 
 
@@ -188,3 +190,40 @@ def test_meaning_question_invariants() -> None:
     assert len(q.choices) == 4
     assert len(set(q.choices)) == 4
     assert 0 <= q.answer_index < 4
+
+
+# ---------------------------------------------------------------------------
+# Step 2.3 — Sentence segmentation + locate-and-blank
+# ---------------------------------------------------------------------------
+
+
+def test_split_sentences_golden() -> None:
+    result = split_sentences("猫が魚を食べた。犬が走る。")
+    assert result == ["猫が魚を食べた。", "犬が走る。"]
+
+
+def test_split_sentences_mixed_terminators() -> None:
+    result = split_sentences("本当！嘘？終わり。")
+    assert result == ["本当！", "嘘？", "終わり。"]
+
+
+def test_split_sentences_newlines() -> None:
+    result = split_sentences("一行目\n二行目\n")
+    assert result == ["一行目\n", "二行目\n"]
+
+
+def test_split_sentences_drops_blanks() -> None:
+    result = split_sentences("猫。\n\n犬。")
+    assert all(s.strip() for s in result)
+
+
+def test_blank_target_uses_surface_of_lemma(tokenizer) -> None:
+    # SudachiPy splits 食べた → 食べ (lemma 食べる) + た (auxiliary)
+    blanked, removed = blank_target("猫が魚を食べた。", "食べる", tokenizer)
+    assert blanked == "猫が魚を____た。"
+    assert removed == "食べ"
+
+
+def test_blank_target_missing_raises(tokenizer) -> None:
+    with pytest.raises(ValueError):
+        blank_target("猫が魚を食べた。", "飲む", tokenizer)

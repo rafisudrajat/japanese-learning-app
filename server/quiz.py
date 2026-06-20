@@ -6,8 +6,11 @@ takes an injected ``random.Random`` so questions are reproducible under a seed
 (never call the global ``random`` module here).
 """
 
+import re
 import random
 from dataclasses import dataclass
+
+from sudachipy.tokenizer import Tokenizer
 
 from server.render import _contains_kanji
 
@@ -106,3 +109,21 @@ def make_meaning_question(
         answer_index=pos,
         target_lemma=target.lemma,
     )
+
+
+_SENTENCE_RE = re.compile(r"[^。！？\n]*[。！？\n]")
+
+
+def split_sentences(text: str) -> list[str]:
+    return [m.group() for m in _SENTENCE_RE.finditer(text) if m.group().strip()]
+
+
+def blank_target(sentence: str, target_lemma: str, tokenizer: Tokenizer) -> tuple[str, str]:
+    for morpheme in tokenizer.tokenize(sentence):
+        if morpheme.dictionary_form() == target_lemma:
+            surface = morpheme.surface()
+            start = morpheme.begin()
+            end = morpheme.end()
+            blanked = sentence[:start] + "____" + sentence[end:]
+            return blanked, surface
+    raise ValueError(f"lemma {target_lemma!r} not found in sentence")
