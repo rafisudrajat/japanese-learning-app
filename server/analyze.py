@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import jaconv
 from sudachipy.tokenizer import Tokenizer
 
 
@@ -9,6 +10,10 @@ class RawToken:
     lemma: str
     reading_katakana: str
     pos: tuple[str, ...]
+
+
+def to_hiragana(reading_katakana: str) -> str:
+    return jaconv.kata2hira(reading_katakana)
 
 
 def tokenize(text: str, tokenizer: Tokenizer) -> list[RawToken]:
