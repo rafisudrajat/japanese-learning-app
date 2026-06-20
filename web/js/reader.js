@@ -105,8 +105,17 @@ document.getElementById("reader-output").addEventListener("click", (e) => {
     </div>`;
   document.body.appendChild(popover);
   const rect = word.getBoundingClientRect();
-  popover.style.left = Math.max(4, rect.left + rect.width / 2 - popover.offsetWidth / 2) + "px";
-  popover.style.top = (rect.top - popover.offsetHeight - 8 + window.scrollY) + "px";
+  const popW = popover.offsetWidth;
+  const popH = popover.offsetHeight;
+  const left = Math.min(Math.max(4, rect.left + rect.width / 2 - popW / 2), window.innerWidth - popW - 4);
+  let top;
+  if (rect.top - popH - 8 < 0) {
+    top = rect.bottom + 8 + window.scrollY;
+  } else {
+    top = rect.top - popH - 8 + window.scrollY;
+  }
+  popover.style.left = left + "px";
+  popover.style.top = top + "px";
   popover.style.position = "absolute";
 
   async function triage(decision) {

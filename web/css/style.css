@@ -138,6 +138,11 @@ h1 {
   line-height: 1.5;
 }
 
+.popover ul {
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
 .popover strong {
   font-size: 1.1rem;
   color: #93c5fd;
