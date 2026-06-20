@@ -17,7 +17,7 @@ There are four tables:
 | [`texts`](#texts) | Imported articles (paste / URL / browser DOM) |
 | [`vocab`](#vocab) | Word list, deduplicated by dictionary form (lemma) |
 | [`cards`](#cards) | FSRS spaced-repetition scheduling state, one per word |
-| [`review_logs`](#review_logs) | One row per review answer — drives stats and FSRS tuning |
+| [`review_logs`](#review_logs) | One row per review (or quiz answer counted as a review) — drives stats and FSRS tuning |
 
 ## Entity relationships
 
@@ -74,7 +74,9 @@ The data flows **text → word → card → review**:
   have no originating text row).
 - Each **vocab** word that you choose to study gets exactly one **card** holding its FSRS
   schedule.
-- Each time you answer a card in review, one **review_log** row is appended.
+- Each time you answer a card in review, one **review_log** row is appended. Quiz answers
+  optionally do the same (when submitted with `count_as_review=true`), updating the word's
+  `card` and appending a `review_log` so quizzing reinforces the same FSRS schedule.
 
 ## Tables
 
@@ -140,7 +142,9 @@ word**: triage creates a card only if none exists, and `save_card` uses
 
 An append-only audit trail of every review answer. Written from day one (even before any
 feature reads it) because the history is required to optimize FSRS parameters later and to
-compute study statistics.
+compute study statistics. Rows are appended by the review screen (`POST /review/answer`) and
+by the quiz when an answer is counted as a review (`POST /quiz/answer` with
+`count_as_review=true`); both paths share the same FSRS rating mapping.
 
 | Column | Type | Constraints | Description |
 |---|---|---|---|

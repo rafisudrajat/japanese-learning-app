@@ -470,26 +470,27 @@ def quiz_next(
         target = rng.choice(kanji_pool)
         question = make_reading_question(target, pool, rng)
     elif type == "cloze":
-        target = rng.choice(pool)
-        text_row = conn.execute(
-            "SELECT t.raw_text FROM texts t JOIN vocab v ON v.first_seen_text_id = t.id "
-            "WHERE v.lemma = ?",
-            (target.lemma,),
-        ).fetchone()
-        if text_row is None:
-            text_row = conn.execute(
-                "SELECT raw_text FROM texts ORDER BY id DESC LIMIT 1"
-            ).fetchone()
-        if text_row is None:
+        all_texts = conn.execute("SELECT raw_text FROM texts").fetchall()
+        if not all_texts:
             raise HTTPException(status_code=400, detail="No texts available for cloze quiz")
-        sentences = split_sentences(text_row[0])
-        matching = [s for s in sentences if target.lemma in s]
-        if not matching:
+        all_sentences = []
+        for row in all_texts:
+            all_sentences.extend(split_sentences(row[0]))
+
+        candidates = list(pool)
+        rng.shuffle(candidates)
+        question = None
+        for target in candidates:
+            matching = [s for s in all_sentences if target.lemma in s]
+            if matching:
+                sentence = rng.choice(matching)
+                question = make_cloze_question(target, sentence, pool, _tokenizer, rng)
+                break
+        if question is None:
             raise HTTPException(
-                status_code=400, detail="No sentence found containing the target word"
+                status_code=400,
+                detail="No sentence found containing any vocabulary word",
             )
-        sentence = rng.choice(matching)
-        question = make_cloze_question(target, sentence, pool, _tokenizer, rng)
     else:
         target = rng.choice(pool)
         question = make_meaning_question(target, pool, rng)

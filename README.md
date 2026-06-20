@@ -11,6 +11,7 @@ Built with Python 3.11+, pywebview for the native desktop shell, and FastAPI as 
 - **Known-word highlighting** — Already-saved words are visually marked in the reader so your eye is drawn to genuinely new vocabulary.
 - **Spaced repetition (FSRS)** — Review saved vocabulary with the modern FSRS algorithm. Cards are scheduled based on your performance history (Again/Hard/Good/Easy), with review logs stored from day one for later parameter optimization.
 - **FSRS parameter optimization** — After accumulating review history, the scheduler adapts to your memory patterns by tuning FSRS parameters from your logged reviews.
+- **Offline quiz engine** — Auto-generated multiple-choice quizzes from your own vocabulary. Three quiz types: **reading** (漢字読み — pick the correct hiragana for a kanji word), **meaning recall** (pick the English meaning), and **cloze** (文脈規定 — fill in the blank in a real sentence from your imported texts). A **mixed mode** randomly cycles through types. Distractors are same-POS and frequency-weighted using JMdict priority tags for plausible, level-matched wrong answers. Quiz results can optionally feed into FSRS so study effort counts toward spaced repetition.
 - **Study statistics** — Dashboard showing accuracy, total reviews, and reviews per day, computed from your review log history.
 - **Anki export** — Export your vocabulary deck as a `.apkg` file (via genanki) for review on your phone in real Anki.
 - **Desktop packaging** — PyInstaller spec for building a double-clickable binary on Windows and Linux, with dictionaries bundled as data files.
@@ -26,20 +27,23 @@ server/
   render.py             # Furigana <ruby> rendering with per-kanji alignment
   db.py                 # SQLite schema (texts, vocab, cards, review_logs) + CRUD
   scheduler.py          # FSRS review wrapper + parameter optimization
+  quiz.py               # Pure quiz logic — question generators, grading, distractor selection
   stats.py              # Study statistics computation
   export.py             # genanki .apkg export
   resources.py          # Resource path resolver (dev vs PyInstaller frozen)
-  importer/             # (Planned) Import tiers: paste, URL fetch, DOM import
+  importer/             # Import tiers: paste, URL fetch, DOM import
 web/
   index.html            # Reader page — paste text, analyze, read with furigana
-  reader.js             # Reader logic — /analyze fetch, popover, save-word
-  vocab.html / vocab.js # Searchable vocabulary list
-  review.html / review.js # SRS review UI — show/reveal + rating buttons
-  stats.html / stats.js # Study statistics dashboard
-  style.css             # Shared styles
-tests/                  # pytest suite (48 tests)
+  js/reader.js          # Reader logic — /analyze fetch, popover, save-word
+  vocab.html / js/vocab.js # Searchable vocabulary list
+  review.html / js/review.js # SRS review UI — show/reveal + rating buttons
+  quiz.html / js/quiz.js # Quiz UI — type selector, question/answer flow
+  stats.html / js/stats.js # Study statistics dashboard
+  css/style.css         # Shared styles
+tests/                  # pytest suite (95 tests)
 doc/
   adr-001-architecture.md # Architecture decision record
+  adr-002-quiz-engine.md  # Quiz data model and grading conventions
 ```
 
 ### Data flow
@@ -140,7 +144,7 @@ You can also run both modes simultaneously — the server is accessible at `http
 pytest -q
 ```
 
-There are currently 48 tests covering tokenization, dictionary lookup, furigana rendering, database operations, FSRS scheduling, API endpoints, statistics, Anki export, and packaging.
+There are currently 95 tests covering tokenization, dictionary lookup, furigana rendering, database operations, FSRS scheduling, quiz generation and grading, API endpoints, statistics, Anki export, and packaging.
 
 ### Linting
 
@@ -208,6 +212,9 @@ The first request after startup may take a moment while the dictionary loads.
 | `GET` | `/review-page` | Review UI page |
 | `GET` | `/review/queue` | Due cards for review (optional `?now=` timestamp) |
 | `POST` | `/review/answer` | Submit a review rating (1=Again, 2=Hard, 3=Good, 4=Easy) |
+| `GET` | `/quiz-page` | Quiz UI page |
+| `GET` | `/quiz/next` | Generate a quiz question (`?type=reading\|meaning\|cloze\|mixed`) |
+| `POST` | `/quiz/answer` | Submit a quiz answer and get the verdict + correct answer |
 | `GET` | `/stats-page` | Statistics dashboard page |
 | `GET` | `/stats` | Computed study statistics (accuracy, reviews/day) |
 | `GET` | `/export/apkg` | Download vocabulary as Anki .apkg file |
