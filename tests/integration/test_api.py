@@ -289,3 +289,37 @@ def test_quiz_page_served(client: TestClient) -> None:
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
     assert "quiz.js" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Dark mode — theme settings API
+# ---------------------------------------------------------------------------
+
+
+def test_get_theme_returns_light_by_default(client: TestClient, api_db: Path) -> None:
+    resp = client.get("/api/settings/theme")
+    assert resp.status_code == 200
+    assert resp.json()["theme"] == "light"
+
+
+def test_put_theme_persists(client: TestClient, api_db: Path) -> None:
+    resp = client.put("/api/settings/theme", json={"theme": "dark"})
+    assert resp.status_code == 200
+    assert resp.json()["theme"] == "dark"
+
+    resp2 = client.get("/api/settings/theme")
+    assert resp2.json()["theme"] == "dark"
+
+
+def test_put_theme_rejects_invalid_value(client: TestClient, api_db: Path) -> None:
+    resp = client.put("/api/settings/theme", json={"theme": "neon"})
+    assert resp.status_code == 422
+
+
+def test_all_pages_include_theme_toggle(client: TestClient) -> None:
+    pages = ["/", "/vocab-page", "/review-page", "/quiz-page", "/stats-page", "/import-page"]
+    for page in pages:
+        resp = client.get(page)
+        assert resp.status_code == 200
+        assert "theme-toggle" in resp.text, f"{page} missing theme toggle button"
+        assert "theme.js" in resp.text, f"{page} missing theme.js script"

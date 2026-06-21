@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import fsrs
 import pytest
 
-from server.db import load_card, save_card, update_card, upsert_vocab
+from server.db import get_setting, load_card, save_card, set_setting, update_card, upsert_vocab
 from server.scheduler import review
 
 
@@ -86,3 +86,26 @@ def test_card_round_trip_schedules_identically(db: sqlite3.Connection) -> None:
     assert card_a.due == card_b.due
     assert card_a.stability == card_b.stability
     assert card_a.difficulty == card_b.difficulty
+
+
+def test_settings_table_exists(db: sqlite3.Connection) -> None:
+    tables = {
+        row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+    }
+    assert "settings" in tables
+
+
+def test_get_setting_returns_default_when_missing(db: sqlite3.Connection) -> None:
+    assert get_setting(db, "theme") is None
+    assert get_setting(db, "theme", "light") == "light"
+
+
+def test_set_and_get_setting(db: sqlite3.Connection) -> None:
+    set_setting(db, "theme", "dark")
+    assert get_setting(db, "theme") == "dark"
+
+
+def test_set_setting_overwrites(db: sqlite3.Connection) -> None:
+    set_setting(db, "theme", "dark")
+    set_setting(db, "theme", "light")
+    assert get_setting(db, "theme") == "light"

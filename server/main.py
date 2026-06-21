@@ -4,6 +4,7 @@ import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -15,7 +16,7 @@ import jamdict
 import fsrs
 
 from server.analyze import Token, analyze
-from server.db import connect, delete_vocab, load_card, save_card, update_card, upsert_vocab
+from server.db import connect, delete_vocab, get_setting, load_card, save_card, set_setting, update_card, upsert_vocab
 from server.quiz import (
     Question,
     VocabEntry,
@@ -184,6 +185,14 @@ class QuizAnswerResponse(BaseModel):
     correct_answer: str
 
 
+class ThemeRequest(BaseModel):
+    theme: Literal["light", "dark"]
+
+
+class ThemeResponse(BaseModel):
+    theme: str
+
+
 _pending: dict[str, Question] = {}
 
 
@@ -341,6 +350,18 @@ def get_stats(conn: sqlite3.Connection = Depends(get_db)) -> StatsResponse:
         total_reviews=s.total_reviews,
         reviews_per_day=s.reviews_per_day,
     )
+
+
+@app.get("/api/settings/theme")
+def get_theme(conn: sqlite3.Connection = Depends(get_db)) -> ThemeResponse:
+    theme = get_setting(conn, "theme", "light")
+    return ThemeResponse(theme=theme)
+
+
+@app.put("/api/settings/theme")
+def set_theme(req: ThemeRequest, conn: sqlite3.Connection = Depends(get_db)) -> ThemeResponse:
+    set_setting(conn, "theme", req.theme)
+    return ThemeResponse(theme=req.theme)
 
 
 @app.get("/import-page")
