@@ -54,7 +54,7 @@ async function triageWord(index, decision) {
     body: JSON.stringify({
       lemma: c.lemma,
       reading: c.reading,
-      meaning: c.meanings[0] || "",
+      meanings: c.meanings || [],
       pos: c.pos,
       decision,
     }),

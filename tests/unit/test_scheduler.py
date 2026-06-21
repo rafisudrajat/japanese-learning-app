@@ -24,7 +24,7 @@ def test_again_schedules_sooner_than_easy() -> None:
 
 
 def test_optimized_scheduler_keeps_invariants(db: sqlite3.Connection) -> None:
-    vocab_id = upsert_vocab(db, "猫", "ねこ", "cat", "名詞", now="2025-01-01")
+    vocab_id = upsert_vocab(db, "猫", "ねこ", "名詞", now="2025-01-01")
     card_db_id = save_card(db, vocab_id, fsrs.Card())
     for i in range(120):
         rating = 3 if i % 4 != 0 else 1

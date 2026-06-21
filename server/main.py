@@ -6,17 +6,31 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 import sudachipy
 import jamdict
 
 import fsrs
 
 from server.analyze import Token, analyze
-from server.db import connect, delete_vocab, get_setting, load_card, save_card, set_setting, update_card, upsert_vocab
+from server.db import (
+    add_vocab_meanings,
+    connect,
+    delete_vocab,
+    get_setting,
+    get_vocab_meanings,
+    load_card,
+    save_card,
+    set_setting,
+    set_vocab_meanings,
+    update_card,
+    update_vocab,
+    upsert_vocab,
+)
 from server.quiz import (
     Question,
     VocabEntry,
@@ -38,6 +52,17 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "app.db"
 
 app = FastAPI()
+
+
+class NoCacheStaticMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+
+app.add_middleware(NoCacheStaticMiddleware)
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 _tokenizer = sudachipy.Dictionary().create()
@@ -77,7 +102,7 @@ class AnalyzeResponse(BaseModel):
 class SaveWordRequest(BaseModel):
     lemma: str
     reading: str
-    meaning: str
+    meanings: list[str]
     pos: str
     text_id: int | None = None
 
@@ -91,7 +116,7 @@ class VocabItem(BaseModel):
     id: int
     lemma: str
     reading: str | None
-    primary_meaning: str | None
+    meanings: list[str]
     status: str
 
 
@@ -99,11 +124,17 @@ class VocabListResponse(BaseModel):
     vocab: list[VocabItem]
 
 
+class UpdateVocabRequest(BaseModel):
+    reading: str | None = None
+    meanings: list[str] | None = None
+    pos: str | None = None
+
+
 class ReviewCardItem(BaseModel):
     card_db_id: int
     lemma: str
     reading: str | None
-    primary_meaning: str | None
+    meanings: list[str]
 
 
 class ReviewQueueResponse(BaseModel):
@@ -128,7 +159,7 @@ class StatsResponse(BaseModel):
 class TriageRequest(BaseModel):
     lemma: str
     reading: str
-    meaning: str
+    meanings: list[str]
     pos: str
     decision: str
 
@@ -244,11 +275,19 @@ def analyze_endpoint(
     )
 
 
+def _vocab_item(conn: sqlite3.Connection, row: tuple) -> VocabItem:
+    return VocabItem(
+        id=row[0], lemma=row[1], reading=row[2],
+        meanings=get_vocab_meanings(conn, row[0]), status=row[3],
+    )
+
+
 @app.post("/vocab")
 def save_word(req: SaveWordRequest, conn: sqlite3.Connection = Depends(get_db)) -> SaveWordResponse:
     existing = conn.execute("SELECT id FROM vocab WHERE lemma = ?", (req.lemma,)).fetchone()
     now = datetime.now(timezone.utc).isoformat()
-    vocab_id = upsert_vocab(conn, req.lemma, req.reading, req.meaning, req.pos, req.text_id, now)
+    vocab_id = upsert_vocab(conn, req.lemma, req.reading, req.pos, req.text_id, now)
+    add_vocab_meanings(conn, vocab_id, req.meanings)
     return SaveWordResponse(id=vocab_id, created=existing is None)
 
 
@@ -259,20 +298,34 @@ def list_vocab(
     if q:
         like = f"%{q}%"
         rows = conn.execute(
-            "SELECT id, lemma, reading, primary_meaning, status FROM vocab "
-            "WHERE lemma LIKE ? OR reading LIKE ? OR primary_meaning LIKE ?",
+            "SELECT DISTINCT v.id, v.lemma, v.reading, v.status FROM vocab v "
+            "LEFT JOIN vocab_meanings vm ON v.id = vm.vocab_id "
+            "LEFT JOIN meanings m ON vm.meaning_id = m.id "
+            "WHERE v.lemma LIKE ? OR v.reading LIKE ? OR m.text LIKE ?",
             (like, like, like),
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT id, lemma, reading, primary_meaning, status FROM vocab"
+            "SELECT id, lemma, reading, status FROM vocab"
         ).fetchall()
-    return VocabListResponse(
-        vocab=[
-            VocabItem(id=r[0], lemma=r[1], reading=r[2], primary_meaning=r[3], status=r[4])
-            for r in rows
-        ]
-    )
+    return VocabListResponse(vocab=[_vocab_item(conn, r) for r in rows])
+
+
+@app.put("/vocab/{vocab_id}")
+def edit_vocab(
+    vocab_id: int, req: UpdateVocabRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> VocabItem:
+    exists = conn.execute("SELECT id FROM vocab WHERE id = ?", (vocab_id,)).fetchone()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Vocab not found")
+    update_vocab(conn, vocab_id, reading=req.reading, pos=req.pos)
+    if req.meanings is not None:
+        set_vocab_meanings(conn, vocab_id, req.meanings)
+    row = conn.execute(
+        "SELECT id, lemma, reading, status FROM vocab WHERE id = ?",
+        (vocab_id,),
+    ).fetchone()
+    return _vocab_item(conn, row)
 
 
 @app.delete("/vocab/{vocab_id}")
@@ -294,7 +347,7 @@ def review_queue(
     ts = now or datetime.now(timezone.utc).isoformat()
     rows = conn.execute(
         """
-        SELECT c.id, v.lemma, v.reading, v.primary_meaning
+        SELECT c.id, v.id, v.lemma, v.reading
         FROM cards c JOIN vocab v ON c.vocab_id = v.id
         WHERE c.due <= ?
         """,
@@ -302,7 +355,10 @@ def review_queue(
     ).fetchall()
     return ReviewQueueResponse(
         cards=[
-            ReviewCardItem(card_db_id=r[0], lemma=r[1], reading=r[2], primary_meaning=r[3])
+            ReviewCardItem(
+                card_db_id=r[0], lemma=r[2], reading=r[3],
+                meanings=get_vocab_meanings(conn, r[1]),
+            )
             for r in rows
         ]
     )
@@ -327,7 +383,8 @@ def review_answer(req: AnswerRequest, conn: sqlite3.Connection = Depends(get_db)
 def triage_word(req: TriageRequest, conn: sqlite3.Connection = Depends(get_db)) -> TriageResponse:
     now = datetime.now(timezone.utc).isoformat()
     status = "learning" if req.decision == "keep" else "known"
-    vocab_id = upsert_vocab(conn, req.lemma, req.reading, req.meaning, req.pos, now=now)
+    vocab_id = upsert_vocab(conn, req.lemma, req.reading, req.pos, now=now)
+    add_vocab_meanings(conn, vocab_id, req.meanings)
     conn.execute("UPDATE vocab SET status = ? WHERE id = ?", (status, vocab_id))
     conn.commit()
     if req.decision == "keep":
@@ -460,16 +517,16 @@ def quiz_next(
     type: str = "meaning", conn: sqlite3.Connection = Depends(get_db)
 ) -> QuizQuestionResponse:
     rows = conn.execute(
-        "SELECT lemma, reading, primary_meaning, pos FROM vocab "
+        "SELECT id, lemma, reading, pos FROM vocab "
         "WHERE status IN ('learning', 'known')",
     ).fetchall()
     pool = [
         VocabEntry(
-            lemma=r[0],
-            reading=r[1] or "",
-            meaning=r[2] or "",
+            lemma=r[1],
+            reading=r[2] or "",
+            meaning="; ".join(get_vocab_meanings(conn, r[0])),
             pos=r[3] or "",
-            frequency=_lookup_frequency(r[0]),
+            frequency=_lookup_frequency(r[1]),
         )
         for r in rows
     ]

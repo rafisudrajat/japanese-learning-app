@@ -13,7 +13,7 @@ def test_keep_creates_one_card(client: TestClient, api_db: Path) -> None:
         json={
             "lemma": "猫",
             "reading": "ねこ",
-            "meaning": "cat",
+            "meanings": ["cat"],
             "pos": "名詞",
             "decision": "keep",
         },
@@ -27,7 +27,7 @@ def test_keep_creates_one_card(client: TestClient, api_db: Path) -> None:
         json={
             "lemma": "猫",
             "reading": "ねこ",
-            "meaning": "cat",
+            "meanings": ["cat"],
             "pos": "名詞",
             "decision": "keep",
         },
@@ -43,7 +43,7 @@ def test_known_creates_no_card(client: TestClient, api_db: Path) -> None:
         json={
             "lemma": "犬",
             "reading": "いぬ",
-            "meaning": "dog",
+            "meanings": ["dog"],
             "pos": "名詞",
             "decision": "known",
         },
@@ -90,7 +90,7 @@ def test_paste_returns_candidates(client: TestClient, api_db: Path) -> None:
 def test_already_know_suppresses_future(client: TestClient, api_db: Path) -> None:
     client.post(
         "/triage",
-        json={"lemma": "猫", "reading": "ねこ", "meaning": "cat", "pos": "名詞", "decision": "known"},
+        json={"lemma": "猫", "reading": "ねこ", "meanings": ["cat"], "pos": "名詞", "decision": "known"},
     )
     resp = client.post(
         "/import/paste",

@@ -21,11 +21,18 @@ _DECK_ID = 2059400110
 
 def export_apkg(conn: sqlite3.Connection, path: Path) -> None:
     deck = genanki.Deck(_DECK_ID, "Japanese Vocab")
-    rows = conn.execute("SELECT lemma, reading, primary_meaning FROM vocab").fetchall()
-    for lemma, reading, meaning in rows:
+    rows = conn.execute("SELECT id, lemma, reading FROM vocab").fetchall()
+    for vocab_id, lemma, reading in rows:
+        meanings_rows = conn.execute(
+            "SELECT m.text FROM meanings m "
+            "JOIN vocab_meanings vm ON m.id = vm.meaning_id "
+            "WHERE vm.vocab_id = ?",
+            (vocab_id,),
+        ).fetchall()
+        meaning_str = "; ".join(r[0] for r in meanings_rows)
         note = genanki.Note(
             model=_MODEL,
-            fields=[lemma, reading or "", meaning or ""],
+            fields=[lemma, reading or "", meaning_str],
         )
         deck.add_note(note)
     pkg = genanki.Package(deck)

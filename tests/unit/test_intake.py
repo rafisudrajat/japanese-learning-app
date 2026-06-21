@@ -59,7 +59,7 @@ def test_drops_non_japanese_and_proper_nouns(tokenizer, dictionary, db: sqlite3.
 
 
 def test_excludes_known_vocab(tokenizer, dictionary, db: sqlite3.Connection) -> None:
-    upsert_vocab(db, "食べる", "たべる", "eat", "動詞", now="2025-01-01")
+    upsert_vocab(db, "食べる", "たべる", "動詞", now="2025-01-01")
     tokens = analyze("今日は寿司を食べた", tokenizer, dictionary)
     candidates = collect_candidates(db, tokens)
     candidate_lemmas = {c.lemma for c in candidates}

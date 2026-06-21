@@ -18,10 +18,28 @@
     <a href="/export/apkg" class="export-link">Export .apkg</a>
     <button id="theme-toggle" title="Toggle dark mode"></button>
   </nav>
-  <script src="/static/js/theme.js"></script>
+  <script src="/static/js/theme.js?v=2"></script>
   <h1>Vocabulary</h1>
+
+  <div id="add-vocab-section">
+    <button id="add-vocab-toggle" class="primary-btn">+ Add word</button>
+    <form id="add-vocab-form" class="vocab-form" style="display:none">
+      <div class="vocab-form-grid">
+        <input name="lemma" type="text" placeholder="Word (e.g. 食べる)" required>
+        <input name="reading" type="text" placeholder="Reading (e.g. たべる)">
+        <input name="meaning" type="text" placeholder="Meanings (e.g. to eat; to have)" required>
+        <input name="pos" type="text" placeholder="Part of speech (e.g. 動詞)">
+      </div>
+      <div class="vocab-form-actions">
+        <button type="submit" class="primary-btn">Save</button>
+        <button type="button" id="add-vocab-cancel" class="cancel-btn">Cancel</button>
+      </div>
+      <div id="add-vocab-status"></div>
+    </form>
+  </div>
+
   <input id="search" type="text" placeholder="Search by kanji, kana, or English meaning...">
   <div id="vocab-list"></div>
-  <script src="/static/js/vocab.js"></script>
+  <script src="/static/js/vocab.js?v=2"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@ import sqlite3
 import zipfile
 from pathlib import Path
 
-from server.db import upsert_vocab
+from server.db import add_vocab_meanings, upsert_vocab
 from server.export import export_apkg
 
 
@@ -12,7 +12,8 @@ def test_apkg_written_with_notes(db: sqlite3.Connection, tmp_path: Path) -> None
         ("犬", "いぬ", "dog"),
         ("魚", "さかな", "fish"),
     ]:
-        upsert_vocab(db, lemma, reading, meaning, "名詞", now="2025-01-01")
+        vid = upsert_vocab(db, lemma, reading, "名詞", now="2025-01-01")
+        add_vocab_meanings(db, vid, [meaning])
 
     apkg_path = tmp_path / "export.apkg"
     export_apkg(db, apkg_path)

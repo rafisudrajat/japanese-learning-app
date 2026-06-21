@@ -15,10 +15,10 @@ import fsrs
 import pytest
 from starlette.testclient import TestClient
 
-from server.db import connect, save_card, upsert_vocab
+from server.db import add_vocab_meanings, connect, save_card, upsert_vocab
 from server.main import app, get_db
 
-_TABLES = ("review_logs", "cards", "vocab", "texts")
+_TABLES = ("review_logs", "cards", "vocab_meanings", "vocab", "meanings", "texts")
 
 
 @pytest.fixture(scope="session")
@@ -51,7 +51,8 @@ def api_db(api_db_path: Path) -> Path:
 def make_due_card(api_db_path: Path) -> Callable[..., int]:
     def _make(lemma: str = "猫") -> int:
         conn = connect(api_db_path)
-        vocab_id = upsert_vocab(conn, lemma, "ねこ", "cat", "名詞", now="2025-01-01T00:00:00")
+        vocab_id = upsert_vocab(conn, lemma, "ねこ", "名詞", now="2025-01-01T00:00:00")
+        add_vocab_meanings(conn, vocab_id, ["cat"])
         card_db_id = save_card(conn, vocab_id, fsrs.Card())
         conn.close()
         return card_db_id

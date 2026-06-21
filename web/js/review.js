@@ -21,7 +21,7 @@ function showCard() {
       <p class="review-word">${c.lemma}</p>
       <div id="answer" style="display:none">
         <p>${c.reading || ""}</p>
-        <p>${c.primary_meaning || ""}</p>
+        <p>${(c.meanings || []).join("; ")}</p>
       </div>
       <button id="show-btn" onclick="document.getElementById('answer').style.display='block'; this.style.display='none'; document.getElementById('rating-btns').style.display='flex'">Show Answer</button>
       <div id="rating-btns" style="display:none; gap:0.5rem;">

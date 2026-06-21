@@ -11,3 +11,8 @@ def test_known_word_has_meaning(dictionary: Jamdict) -> None:
 def test_unknown_word_returns_empty(dictionary: Jamdict) -> None:
     glosses: list[str] = lookup_meanings("ぬるぽぽぽ", dictionary)
     assert glosses == []
+
+
+def test_meanings_are_deduplicated(dictionary: Jamdict) -> None:
+    glosses: list[str] = lookup_meanings("みる", dictionary)
+    assert len(glosses) == len(set(glosses))

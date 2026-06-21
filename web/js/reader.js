@@ -94,7 +94,7 @@ document.getElementById("reader-output").addEventListener("click", (e) => {
   const popover = document.createElement("div");
   popover.className = "popover";
   const meaningsHtml = meanings.length > 0
-    ? meanings.map(m => `<li>${m}</li>`).join("")
+    ? meanings.map((m, i) => `<li><label><input type="checkbox" class="meaning-check" data-index="${i}" checked> ${m}</label></li>`).join("")
     : "<li>(no dictionary entry)</li>";
   popover.innerHTML = `
     <strong>${reading}</strong>
@@ -119,13 +119,18 @@ document.getElementById("reader-output").addEventListener("click", (e) => {
   popover.style.position = "absolute";
 
   async function triage(decision) {
+    var checks = popover.querySelectorAll(".meaning-check:checked");
+    var selected = Array.from(checks).map(function (cb) {
+      return meanings[parseInt(cb.dataset.index)];
+    });
+    if (selected.length === 0) selected = meanings.slice();
     const resp = await fetch("/triage", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
         lemma,
         reading,
-        meaning: meanings[0] || "",
+        meanings: selected,
         pos: word.dataset.pos || "",
         decision,
       }),

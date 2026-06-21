@@ -56,6 +56,17 @@ def connect(path: str | Path) -> sqlite3.Connection:
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS meanings (
+            id   INTEGER PRIMARY KEY,
+            text TEXT NOT NULL UNIQUE
+        );
+
+        CREATE TABLE IF NOT EXISTS vocab_meanings (
+            vocab_id   INTEGER NOT NULL REFERENCES vocab(id) ON DELETE CASCADE,
+            meaning_id INTEGER NOT NULL REFERENCES meanings(id) ON DELETE CASCADE,
+            PRIMARY KEY (vocab_id, meaning_id)
+        );
     """)
     conn.commit()
     return conn
@@ -79,25 +90,85 @@ def upsert_vocab(
     conn: sqlite3.Connection,
     lemma: str,
     reading: str,
-    meaning: str,
     pos: str,
     text_id: int | None = None,
     now: str = "",
 ) -> int:
     cur = conn.execute(
         """
-        INSERT INTO vocab (lemma, reading, primary_meaning, pos, seen_count, text_count,
+        INSERT INTO vocab (lemma, reading, pos, seen_count, text_count,
                            first_seen_text_id, created_at)
-        VALUES (?, ?, ?, ?, 1, 1, ?, ?)
+        VALUES (?, ?, ?, 1, 1, ?, ?)
         ON CONFLICT (lemma) DO UPDATE SET
             seen_count = seen_count + 1
         RETURNING id
         """,
-        (lemma, reading, meaning, pos, text_id, now),
+        (lemma, reading, pos, text_id, now),
     )
     row = cur.fetchone()
     conn.commit()
     return row[0]
+
+
+def update_vocab(
+    conn: sqlite3.Connection,
+    vocab_id: int,
+    reading: str | None = None,
+    pos: str | None = None,
+) -> bool:
+    updates: list[str] = []
+    params: list[str] = []
+    if reading is not None:
+        updates.append("reading = ?")
+        params.append(reading)
+    if pos is not None:
+        updates.append("pos = ?")
+        params.append(pos)
+    if not updates:
+        return False
+    params.append(str(vocab_id))
+    cur = conn.execute(
+        f"UPDATE vocab SET {', '.join(updates)} WHERE id = ?",
+        params,
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def add_vocab_meanings(
+    conn: sqlite3.Connection, vocab_id: int, meanings: list[str]
+) -> None:
+    for text in meanings:
+        conn.execute(
+            "INSERT INTO meanings (text) VALUES (?) ON CONFLICT (text) DO NOTHING",
+            (text,),
+        )
+        meaning_id = conn.execute(
+            "SELECT id FROM meanings WHERE text = ?", (text,)
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO vocab_meanings (vocab_id, meaning_id) VALUES (?, ?) "
+            "ON CONFLICT DO NOTHING",
+            (vocab_id, meaning_id),
+        )
+    conn.commit()
+
+
+def set_vocab_meanings(
+    conn: sqlite3.Connection, vocab_id: int, meanings: list[str]
+) -> None:
+    conn.execute("DELETE FROM vocab_meanings WHERE vocab_id = ?", (vocab_id,))
+    add_vocab_meanings(conn, vocab_id, meanings)
+
+
+def get_vocab_meanings(conn: sqlite3.Connection, vocab_id: int) -> list[str]:
+    rows = conn.execute(
+        "SELECT m.text FROM meanings m "
+        "JOIN vocab_meanings vm ON m.id = vm.meaning_id "
+        "WHERE vm.vocab_id = ?",
+        (vocab_id,),
+    ).fetchall()
+    return [r[0] for r in rows]
 
 
 def delete_vocab(conn: sqlite3.Connection, vocab_id: int) -> bool:
@@ -107,6 +178,7 @@ def delete_vocab(conn: sqlite3.Connection, vocab_id: int) -> bool:
         (vocab_id,),
     )
     conn.execute("DELETE FROM cards WHERE vocab_id = ?", (vocab_id,))
+    conn.execute("DELETE FROM vocab_meanings WHERE vocab_id = ?", (vocab_id,))
     cur = conn.execute("DELETE FROM vocab WHERE id = ?", (vocab_id,))
     conn.commit()
     return cur.rowcount > 0

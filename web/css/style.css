@@ -253,8 +253,23 @@ h1 {
 
 .popover ul {
   margin: 0.4rem 0 0.6rem;
-  padding-left: 1.2rem;
+  padding-left: 0.2rem;
   color: #e2e8f0;
+  list-style: none;
+}
+
+.popover label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  cursor: pointer;
+  padding: 0.1rem 0;
+}
+
+.popover .meaning-check {
+  accent-color: #6366f1;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .popover p {
@@ -387,20 +402,85 @@ h1 {
   color: var(--status-new-text);
 }
 
+.vocab-item .edit-btn,
 .vocab-item .delete-btn {
   float: right;
   font-size: 0.75rem;
   padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 0.3rem;
+}
+
+.vocab-item .edit-btn {
+  border: 1px solid var(--input-border);
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+
+.vocab-item .edit-btn:hover {
+  background: var(--surface-alt);
+}
+
+.vocab-item .delete-btn {
   border: 1px solid var(--delete-border);
   background: var(--delete-bg);
   color: var(--delete-text);
-  border-radius: 4px;
-  cursor: pointer;
 }
 
 .vocab-item .delete-btn:hover {
   background: var(--delete-hover-bg);
   border-color: var(--delete-hover-border);
+}
+
+.vocab-form,
+.vocab-edit-form {
+  margin: 0.7rem 0;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.vocab-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.vocab-form-grid input {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.vocab-form-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.cancel-btn {
+  padding: 0.4rem 1rem;
+  font-size: 0.9rem;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cancel-btn:hover {
+  background: var(--surface-alt);
+}
+
+#add-vocab-section {
+  margin-bottom: 1rem;
 }
 
 .stat-card {
