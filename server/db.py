@@ -69,7 +69,36 @@ def connect(path: str | Path) -> sqlite3.Connection:
         );
     """)
     conn.commit()
+    _migrate_primary_meanings(conn)
     return conn
+
+
+def _migrate_primary_meanings(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        "SELECT id, primary_meaning FROM vocab "
+        "WHERE primary_meaning IS NOT NULL AND primary_meaning != '' "
+        "AND id NOT IN (SELECT DISTINCT vocab_id FROM vocab_meanings)"
+    ).fetchall()
+    if not rows:
+        return
+    for vocab_id, meaning_text in rows:
+        for m in meaning_text.split("; "):
+            m = m.strip()
+            if not m:
+                continue
+            conn.execute(
+                "INSERT INTO meanings (text) VALUES (?) ON CONFLICT (text) DO NOTHING",
+                (m,),
+            )
+            meaning_id = conn.execute(
+                "SELECT id FROM meanings WHERE text = ?", (m,)
+            ).fetchone()[0]
+            conn.execute(
+                "INSERT INTO vocab_meanings (vocab_id, meaning_id) VALUES (?, ?) "
+                "ON CONFLICT DO NOTHING",
+                (vocab_id, meaning_id),
+            )
+    conn.commit()
 
 
 def get_setting(conn: sqlite3.Connection, key: str, default: str | None = None) -> str | None:

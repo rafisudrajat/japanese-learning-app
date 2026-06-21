@@ -28,7 +28,8 @@ function renderTokens(tokens) {
       : t.surface;
     const meanings = JSON.stringify(t.meanings).replace(/'/g, "&#39;");
     const knownClass = t.known ? " known" : "";
-    return `<span class="word${knownClass}" data-lemma="${t.lemma}" data-reading="${t.reading_hiragana}" data-meanings='${meanings}' data-pos="${t.pos[0] || ''}">${display}</span>`;
+    const lemmaReading = t.lemma_reading_hiragana || t.reading_hiragana;
+    return `<span class="word${knownClass}" data-lemma="${t.lemma}" data-reading="${lemmaReading}" data-meanings='${meanings}' data-pos="${t.pos[0] || ''}">${display}</span>`;
   }).join("");
 }
 

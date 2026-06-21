@@ -6,7 +6,9 @@ from starlette.testclient import TestClient
 
 from server.db import add_vocab_meanings, connect, save_card, upsert_vocab
 
-TOKEN_FIELDS = {"surface", "reading_hiragana", "lemma", "meanings", "pos", "known"}
+TOKEN_FIELDS = {
+    "surface", "reading_hiragana", "lemma", "lemma_reading_hiragana", "meanings", "pos", "known"
+}
 
 
 def test_analyze_endpoint_shape(client: TestClient, api_db: Path) -> None:

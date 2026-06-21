@@ -38,6 +38,24 @@ def test_analyze_full_token(tokenizer: Tokenizer, dictionary: Jamdict) -> None:
     assert any("cat" in m.lower() for m in cat.meanings)
 
 
+def test_lemma_reading_uses_dictionary_form(tokenizer: Tokenizer, dictionary: Jamdict) -> None:
+    # Inflected verb: the surface 焼け reads やけ, but the dictionary form 焼ける reads やける.
+    # reading_hiragana stays surface (for furigana); lemma_reading_hiragana is the dict form.
+    tokens: list[Token] = analyze("魚が焼けた", tokenizer, dictionary)
+    verb = next(t for t in tokens if t.lemma == "焼ける")
+    assert verb.reading_hiragana == "やけ"
+    assert verb.lemma_reading_hiragana == "やける"
+
+
+def test_lemma_reading_matches_for_uninflected_words(
+    tokenizer: Tokenizer, dictionary: Jamdict
+) -> None:
+    tokens: list[Token] = analyze("猫", tokenizer, dictionary)
+    cat = next(t for t in tokens if t.lemma == "猫")
+    assert cat.reading_hiragana == "ねこ"
+    assert cat.lemma_reading_hiragana == "ねこ"
+
+
 def test_analyze_emits_all_fields(tokenizer: Tokenizer, dictionary: Jamdict) -> None:
     tokens: list[Token] = analyze("猫を見た", tokenizer, dictionary)
     for t in tokens:

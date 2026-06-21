@@ -90,6 +90,7 @@ class TokenResponse(BaseModel):
     surface: str
     reading_hiragana: str
     lemma: str
+    lemma_reading_hiragana: str
     meanings: list[str]
     pos: list[str]
     known: bool
@@ -266,6 +267,7 @@ def analyze_endpoint(
                 surface=t.surface,
                 reading_hiragana=t.reading_hiragana,
                 lemma=t.lemma,
+                lemma_reading_hiragana=t.lemma_reading_hiragana,
                 meanings=t.meanings,
                 pos=list(t.pos),
                 known=t.known,
@@ -437,6 +439,7 @@ def _build_import_response(conn: sqlite3.Connection, text_id: int, text: str) ->
                 surface=t.surface,
                 reading_hiragana=t.reading_hiragana,
                 lemma=t.lemma,
+                lemma_reading_hiragana=t.lemma_reading_hiragana,
                 meanings=t.meanings,
                 pos=list(t.pos),
                 known=t.known,
@@ -520,23 +523,22 @@ def quiz_next(
         "SELECT id, lemma, reading, pos FROM vocab "
         "WHERE status IN ('learning', 'known')",
     ).fetchall()
-    pool = [
-        VocabEntry(
+    rng = random.Random()
+    pool = []
+    for r in rows:
+        meanings = get_vocab_meanings(conn, r[0])
+        pool.append(VocabEntry(
             lemma=r[1],
             reading=r[2] or "",
-            meaning="; ".join(get_vocab_meanings(conn, r[0])),
+            meaning=rng.choice(meanings) if meanings else "",
             pos=r[3] or "",
             frequency=_lookup_frequency(r[1]),
-        )
-        for r in rows
-    ]
+        ))
 
     if len(pool) < 4:
         raise HTTPException(
             status_code=400, detail="Not enough vocabulary for a quiz (need at least 4)"
         )
-
-    rng = random.Random()
     if type == "mixed":
         question = make_mixed_question(pool, rng)
     elif type == "reading":

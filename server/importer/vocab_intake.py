@@ -73,7 +73,7 @@ def collect_candidates(conn: sqlite3.Connection, tokens: list[Token]) -> list[Ca
         candidates.append(
             Candidate(
                 lemma=lemma,
-                reading=t.reading_hiragana,
+                reading=t.lemma_reading_hiragana or t.reading_hiragana,
                 meanings=t.meanings,
                 pos=t.pos[0] if t.pos else "",
                 frequency=freq,

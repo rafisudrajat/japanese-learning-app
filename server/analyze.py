@@ -23,10 +23,25 @@ class Token:
     meanings: list[str]
     pos: tuple[str, ...]
     known: bool
+    lemma_reading_hiragana: str = ""
 
 
 def to_hiragana(reading_katakana: str) -> str:
     return jaconv.kata2hira(reading_katakana)
+
+
+def lemma_reading(raw: RawToken, tokenizer: Tokenizer) -> str:
+    """Reading of the dictionary form, not the surface form.
+
+    For an inflected word the surface reading is partial (焼けた → やけ), but the
+    vocabulary entry is keyed on the lemma, so it needs the dictionary-form
+    reading (焼ける → やける). When the surface already is the dictionary form we
+    reuse its reading; otherwise we re-tokenize the lemma to read it.
+    """
+    if raw.surface == raw.lemma:
+        return to_hiragana(raw.reading_katakana)
+    morphemes = tokenizer.tokenize(raw.lemma)
+    return to_hiragana("".join(m.reading_form() for m in morphemes))
 
 
 def tokenize(text: str, tokenizer: Tokenizer) -> list[RawToken]:
@@ -56,6 +71,7 @@ def analyze(
             meanings=lookup_meanings(raw.lemma, dictionary),
             pos=raw.pos,
             known=raw.lemma in _known,
+            lemma_reading_hiragana=lemma_reading(raw, tokenizer),
         )
         for raw in tokenize(text, tokenizer)
     ]
